@@ -1,17 +1,12 @@
-import { Screen, Text } from '@/shared/ui';
-import { env } from '@/shared/config';
+import { Redirect } from 'expo-router';
 
-// Tela provisória: confirma que o app sobe e leu o ambiente. Na 5.7 esta rota
-// passa a redirecionar para o login ou para o app.
+import { useSessao } from '@/features/auth';
+import { Carregando } from '@/shared/ui';
+
+// Entrada do app: manda para o login ou para o app conforme a sessão.
+// O painel chega na fatia 4; até lá, quem está logado vai para o Perfil.
 export default function Inicio() {
-  return (
-    <Screen centered>
-      <Text variant="title" align="center">
-        Gestor de Gastos
-      </Text>
-      <Text color="textMuted" align="center">
-        Ambiente: {env.appEnv} · API: {env.apiUrl}
-      </Text>
-    </Screen>
-  );
+  const { status } = useSessao();
+  if (status === 'carregando') return <Carregando />;
+  return <Redirect href={status === 'autenticado' ? '/perfil' : '/login'} />;
 }

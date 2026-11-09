@@ -5,6 +5,7 @@ export type { BadgeTone } from './Badge';
 export { Banner } from './Banner';
 export type { BannerTone } from './Banner';
 export { Button } from './Button';
+export { Carregando } from './Carregando';
 export type { ButtonVariant } from './Button';
 export { Header } from './Header';
 export { Icon } from './Icon';

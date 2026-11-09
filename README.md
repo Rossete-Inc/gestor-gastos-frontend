@@ -57,6 +57,28 @@ As telas usam só os componentes e os `tokens` de `shared/ui`; nenhuma cor ou me
 - **Autenticação:** a feature de sessão se pluga com `configurarAutenticacao`, porque o `shared` não conhece features.
 - **Cache:** o `queryClient` do TanStack Query não repete erros 4xx e não repete mutações.
 
+## Autenticação (`src/features/auth`) e Perfil (`src/features/perfil`)
+
+| Rota                | Tela                                                                                                                       |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `/login`            | Login. Credencial inválida recebe uma mensagem genérica; conta pendente vai para a confirmação; conta bloqueada é recusada |
+| `/cadastro`         | Cadastro com a política de senha descrita regra a regra                                                                    |
+| `/confirmar?email=` | Código de 6 números, com reenvio                                                                                           |
+| `/perfil`           | Nome, e-mail, papel, data de criação e "Sair" (o painel chega na fatia 4)                                                  |
+
+- **Cognito:** o app chama o Cognito direto pelo protocolo JSON da API (`X-Amz-Target`), sem o SDK da AWS. O login usa `USER_PASSWORD_AUTH`, o fluxo do cognito-local; o SRP da nuvem entra antes do deploy (6.6).
+- **Sessão:** o estado (`carregando`, `anonimo` ou `autenticado`) fica num store mínimo da feature, e o client HTTP renova o access token no primeiro 401.
+- **Credenciais:**
+
+  | Plataforma  | Onde ficam                                                    | Efeito                             |
+  | ----------- | ------------------------------------------------------------- | ---------------------------------- |
+  | Web         | Só em memória (os guardrails proíbem token em `localStorage`) | Recarregar a página pede login     |
+  | iOS/Android | Refresh token no `expo-secure-store`                          | A sessão é retomada ao abrir o app |
+
+- **Guardas:** o layout de `(app)` manda quem não tem sessão para o login; o de `(auth)` manda quem já tem sessão para o app.
+
+Usuários de teste do ambiente local: os do seed do infra-base (`docs/local.md`). Contas novas recebem o código de confirmação no log do cognito-local.
+
 ## Testes
 
 ```sh
