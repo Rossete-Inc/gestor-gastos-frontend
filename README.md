@@ -35,12 +35,45 @@ src/
 
 As fronteiras `app → features → shared` são verificadas pelo ESLint (`no-restricted-imports`) e pelo `scripts/check_boundaries.py`, que também pega imports relativos que atravessam camadas.
 
+## Design system (`src/shared/ui`)
+
+As telas usam só os componentes e os `tokens` de `shared/ui`; nenhuma cor ou medida literal fora dali.
+
+| Componente                 | Figma                                                                             |
+| -------------------------- | --------------------------------------------------------------------------------- |
+| `Button`                   | Button: Primary, Secondary, Ghost e Danger, com Disabled e estado de carregamento |
+| `TextField`                | Input: Default, Focused, Error e Disabled, com mostrar/ocultar senha              |
+| `Header`, `Screen`         | Header: Title e Back; `Screen` é a moldura da tela                                |
+| `Banner`                   | Banner: Error, Offline e Success                                                  |
+| `Badge`                    | Badge: Neutral, Brand, Success, Danger, Warning, Cartao e Fixo                    |
+| `MenuItem`, `Icon`, `Text` | MenuItem, ícones (nomes do Feather) e escala tipográfica                          |
+
+> **Tokens provisórios.** O Figma MCP atingiu o limite do plano Starter antes da leitura das variáveis. Os valores em `src/shared/ui/tokens.ts` usam a mesma família de cores do seed das categorias. Quando o Figma liberar, troca-se só esse arquivo.
+
+## Client do BFF (`src/shared/api`)
+
+- **Contrato:** `openapi/bff.yaml` é uma cópia fixada do contrato do BFF. O `npm run api:gerar` (orval) gera em `src/shared/api/generated` as funções de fetch, os tipos e os schemas Zod. Os arquivos gerados nunca são editados à mão, e a esteira falha se estiverem desatualizados.
+- **Chamadas:** passam pelo `httpMutator`, que põe o token, lança `ApiError` com o problem+json já lido (`status`, `code`, `detail`, `errors`) e trata o 401: renova a sessão uma única vez, mesmo com várias chamadas simultâneas, repete a chamada e, se não der, encerra a sessão.
+- **Autenticação:** a feature de sessão se pluga com `configurarAutenticacao`, porque o `shared` não conhece features.
+- **Cache:** o `queryClient` do TanStack Query não repete erros 4xx e não repete mutações.
+
+## Testes
+
+```sh
+npm test
+```
+
+Jest com `jest-expo`, Testing Library e MSW, que intercepta o `fetch` como um WireMock do front. Duas notas de configuração, explicadas no `jest.config.js`:
+
+- **`EXPO_PUBLIC_USE_RN_FETCH=1`:** impede o setup do `jest-expo` de trocar o `fetch` global pelo stub do `expo/fetch`.
+- **ESM do MSW 3:** o MSW 3 e parte das dependências dele são só-ESM e passam pelo Babel.
+
 ## Qualidade
 
 ```sh
-npm run verify   # typecheck + lint + format:check + check:boundaries
+npm run verify   # typecheck + lint + format:check + check:boundaries + testes
 ```
 
 - **Pre-commit:** o hook do Husky roda o lint-staged, com ESLint e Prettier nos arquivos alterados.
-- **Esteira:** em todo PR roda o `verify` e o build web (`expo export -p web`).
+- **Esteira:** em todo PR roda o `verify`, a checagem do client gerado e o build web (`expo export -p web`).
 - **Fim de linha:** o `.gitattributes` força LF, inclusive no Windows, porque o Prettier exige.
