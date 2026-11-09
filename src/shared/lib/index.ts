@@ -1,0 +1,1 @@
+export { formatarDataLonga } from './datas';
