@@ -1,0 +1,3 @@
+# LF em todo o repositório, inclusive no Windows (Prettier exige LF).
+* text=auto eol=lf
+*.png binary

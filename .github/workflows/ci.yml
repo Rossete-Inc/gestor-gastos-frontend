@@ -1,0 +1,42 @@
+# Esteira de PR do front: tipos, lint, formatação, fronteiras e build web.
+# Testes entram na 5.6; o workflow reutilizável com deploy no Amplify, na 6.3.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run check:boundaries
+      - name: Build web (expo export)
+        env:
+          EXPO_PUBLIC_APP_ENV: local
+          EXPO_PUBLIC_API_URL: http://127.0.0.1:8080
+          EXPO_PUBLIC_COGNITO_REGION: us-east-1
+          EXPO_PUBLIC_COGNITO_CLIENT_ID: ci
+          EXPO_PUBLIC_COGNITO_ENDPOINT: http://localhost:9229
+        run: npx expo export -p web
