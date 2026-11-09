@@ -1,20 +1,12 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Redirect } from 'expo-router';
 
-import { env } from '@/shared/config';
+import { useSessao } from '@/features/auth';
+import { Carregando } from '@/shared/ui';
 
-// Tela provisória da 5.5: confirma que o app sobe e leu o ambiente. Na 5.7
-// esta rota passa a redirecionar para o login ou para o app.
+// Entrada do app: manda para o login ou para o app conforme a sessão.
+// O painel chega na fatia 4; até lá, quem está logado vai para o Perfil.
 export default function Inicio() {
-  return (
-    <View style={styles.container}>
-      <Text style={styles.titulo}>Gestor de Gastos</Text>
-      <Text>Ambiente: {env.appEnv}</Text>
-      <Text>API: {env.apiUrl}</Text>
-    </View>
-  );
+  const { status } = useSessao();
+  if (status === 'carregando') return <Carregando />;
+  return <Redirect href={status === 'autenticado' ? '/perfil' : '/login'} />;
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
-  titulo: { fontSize: 22, fontWeight: '600' },
-});

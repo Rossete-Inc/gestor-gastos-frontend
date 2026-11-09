@@ -1,7 +1,19 @@
+import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-// Layout raiz: só providers e infraestrutura. TanStack Query entra na 5.6;
-// a guarda de autenticação fica no layout do grupo (app), na 5.7.
+import { useIniciarSessao } from '@/features/auth';
+import { queryClient } from '@/shared/api';
+
+// Layout raiz: providers e o início da sessão. As guardas ficam nos layouts
+// dos grupos (auth) e (app).
 export default function RootLayout() {
-  return <Stack screenOptions={{ headerShown: false }} />;
+  useIniciarSessao();
+  return (
+    <SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        <Stack screenOptions={{ headerShown: false }} />
+      </QueryClientProvider>
+    </SafeAreaProvider>
+  );
 }
