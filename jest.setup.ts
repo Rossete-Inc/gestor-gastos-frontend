@@ -1,0 +1,6 @@
+// Ambiente dos testes: as mesmas variáveis do .env.local, com valores fixos.
+process.env.EXPO_PUBLIC_APP_ENV = 'local';
+process.env.EXPO_PUBLIC_API_URL = 'http://bff.test';
+process.env.EXPO_PUBLIC_COGNITO_REGION = 'us-east-1';
+process.env.EXPO_PUBLIC_COGNITO_CLIENT_ID = 'client-teste';
+process.env.EXPO_PUBLIC_COGNITO_ENDPOINT = 'http://cognito.test';

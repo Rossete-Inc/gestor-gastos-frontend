@@ -4,3 +4,5 @@ dist
 package-lock.json
 src/shared/api/generated
 .github/pull_request_template.md
+coverage
+openapi/bff.yaml
