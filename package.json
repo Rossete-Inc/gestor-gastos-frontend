@@ -47,6 +47,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "env:local": "node scripts/gerar-env-local.mjs",
+    "env:dev": "node scripts/gerar-env-dev.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",

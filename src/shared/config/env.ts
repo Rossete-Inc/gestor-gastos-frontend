@@ -15,6 +15,12 @@ export const EnvSchema = z.object({
   cognito: z.object({
     region: z.string().min(1),
     clientId: z.string().min(1),
+    // Id do User Pool (us-east-1_Abc123). Obrigatório na AWS: o login SRP usa
+    // o nome do pool na prova da senha. O cognito-local não usa SRP.
+    userPoolId: z
+      .string()
+      .regex(/^[\w-]+_[0-9a-zA-Z]+$/, 'formato esperado: <região>_<id>')
+      .optional(),
     // Só no ambiente local (cognito-local). Na AWS o SDK usa o endpoint da região.
     endpoint: url.optional(),
   }),
@@ -29,11 +35,15 @@ export function parseEnv(raw: Record<string, string | undefined>): Env {
     cognito: {
       region: raw.EXPO_PUBLIC_COGNITO_REGION,
       clientId: raw.EXPO_PUBLIC_COGNITO_CLIENT_ID,
+      userPoolId: raw.EXPO_PUBLIC_COGNITO_USER_POOL_ID || undefined,
       endpoint: raw.EXPO_PUBLIC_COGNITO_ENDPOINT || undefined,
     },
   });
   if (env.appEnv !== 'local' && env.cognito.endpoint) {
     throw new Error('EXPO_PUBLIC_COGNITO_ENDPOINT só é permitido com EXPO_PUBLIC_APP_ENV=local');
+  }
+  if (env.appEnv !== 'local' && !env.cognito.userPoolId) {
+    throw new Error('EXPO_PUBLIC_COGNITO_USER_POOL_ID é obrigatória fora do ambiente local');
   }
   return env;
 }
@@ -43,6 +53,7 @@ export const env: Env = parseEnv({
   EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
   EXPO_PUBLIC_COGNITO_REGION: process.env.EXPO_PUBLIC_COGNITO_REGION,
   EXPO_PUBLIC_COGNITO_CLIENT_ID: process.env.EXPO_PUBLIC_COGNITO_CLIENT_ID,
+  EXPO_PUBLIC_COGNITO_USER_POOL_ID: process.env.EXPO_PUBLIC_COGNITO_USER_POOL_ID,
   EXPO_PUBLIC_COGNITO_ENDPOINT: process.env.EXPO_PUBLIC_COGNITO_ENDPOINT,
 });
 

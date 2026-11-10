@@ -1,15 +1,18 @@
 import { env } from '@/shared/config';
+import { bytesAleatorios } from '@/shared/platform';
 
 import { CognitoError } from '../model/erros';
+import { iniciarSrp, responderDesafio, type DesafioSrp } from './srp';
 
 // Client mínimo do Cognito User Pool pelo protocolo JSON da própria API
 // (POST + X-Amz-Target). SignUp, ConfirmSignUp, ResendConfirmationCode e
 // InitiateAuth são operações públicas do app client, sem assinatura AWS:
 // não precisamos do SDK, que pesaria no bundle e pediria polyfills no RN.
 //
-// Login: USER_PASSWORD_AUTH, o fluxo que o cognito-local implementa. O
-// design pede SRP na nuvem; ele entra antes do deploy (tarefa 6.6) atrás
-// desta mesma função `entrar`.
+// Login: na AWS, SRP (USER_SRP_AUTH + desafio PASSWORD_VERIFIER), o único
+// fluxo de senha que o app client aceita; a senha não trafega. No ambiente
+// local, USER_PASSWORD_AUTH, porque o cognito-local não implementa SRP
+// (design.md). A escolha fica atrás da mesma função `entrar`.
 
 export type Tokens = {
   accessToken: string;
@@ -50,6 +53,8 @@ async function chamar<T>(operacao: string, corpo: object): Promise<T> {
 
 type RespostaAuth = {
   ChallengeName?: string;
+  ChallengeParameters?: Record<string, string>;
+  Session?: string;
   AuthenticationResult?: { AccessToken: string; RefreshToken?: string; ExpiresIn: number };
 };
 
@@ -80,12 +85,7 @@ export const cognito = {
   reenviarCodigo: (email: string) => chamar<object>('ResendConfirmationCode', { Username: email }),
 
   entrar: async (email: string, senha: string): Promise<Tokens> =>
-    tokens(
-      await chamar<RespostaAuth>('InitiateAuth', {
-        AuthFlow: 'USER_PASSWORD_AUTH',
-        AuthParameters: { USERNAME: email, PASSWORD: senha },
-      }),
-    ),
+    env.appEnv === 'local' ? entrarComSenha(email, senha) : entrarComSrp(email, senha),
 
   /** Novo access token a partir do refresh token, que continua o mesmo. */
   renovar: async (refreshToken: string): Promise<Tokens> =>
@@ -97,3 +97,41 @@ export const cognito = {
       refreshToken,
     ),
 };
+
+async function entrarComSenha(email: string, senha: string): Promise<Tokens> {
+  return tokens(
+    await chamar<RespostaAuth>('InitiateAuth', {
+      AuthFlow: 'USER_PASSWORD_AUTH',
+      AuthParameters: { USERNAME: email, PASSWORD: senha },
+    }),
+  );
+}
+
+async function entrarComSrp(email: string, senha: string): Promise<Tokens> {
+  const userPoolId = env.cognito.userPoolId;
+  if (!userPoolId) throw new CognitoError('ConfiguracaoInvalida', 'User Pool não configurado');
+
+  const estado = iniciarSrp(bytesAleatorios);
+  const inicio = await chamar<RespostaAuth>('InitiateAuth', {
+    AuthFlow: 'USER_SRP_AUTH',
+    AuthParameters: { USERNAME: email, SRP_A: estado.A.toString(16) },
+  });
+  if (inicio.ChallengeName !== 'PASSWORD_VERIFIER' || !inicio.ChallengeParameters) {
+    return tokens(inicio);
+  }
+
+  const desafio = inicio.ChallengeParameters as DesafioSrp;
+  return tokens(
+    await chamar<RespostaAuth>('RespondToAuthChallenge', {
+      ChallengeName: 'PASSWORD_VERIFIER',
+      ChallengeResponses: responderDesafio({
+        userPoolId,
+        estado,
+        desafio,
+        senha,
+        agora: new Date(),
+      }),
+      ...(inicio.Session ? { Session: inicio.Session } : {}),
+    }),
+  );
+}

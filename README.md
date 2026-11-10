@@ -24,6 +24,27 @@ O `env:local` procura o infra-base em `../gestor-gastos-infra-base`. Se ele esti
 
 As variáveis são validadas com Zod no boot (`src/shared/config`): se faltar alguma, o app falha apontando qual. **Nada aqui é segredo**, porque tudo vai para o bundle.
 
+## Na AWS (dev)
+
+O site é publicado no **Amplify Hosting** a cada push na `main`, pela esteira (`.github/workflows/ci.yml`, que chama o `frontend.yml` do infra-base):
+
+1. Em todo PR: `tsc`, ESLint, Prettier, fronteiras, client gerado em dia, Jest e `expo export -p web`. PR de funcionalidade ou correção precisa de `- [x] Validado localmente` no corpo.
+2. Na `main`: as mesmas verificações e o deploy em `dev` (GitHub Environment `dev`, role `gh-deploy-gestor-gastos-frontend-dev` por OIDC). O build lê do SSM a URL da API, o client id e o id do User Pool, e envia o `dist/` ao Amplify por deploy manual (`create-deployment` + `start-deployment`).
+
+| Variável                           | dev (lida do SSM pela esteira)                |
+| ---------------------------------- | --------------------------------------------- |
+| `EXPO_PUBLIC_APP_ENV`              | `dev`                                         |
+| `EXPO_PUBLIC_API_URL`              | `/gestor-gastos/dev/api/url`                  |
+| `EXPO_PUBLIC_COGNITO_REGION`       | `us-east-1`                                   |
+| `EXPO_PUBLIC_COGNITO_CLIENT_ID`    | `/gestor-gastos/dev/auth/user-pool-client-id` |
+| `EXPO_PUBLIC_COGNITO_USER_POOL_ID` | `/gestor-gastos/dev/auth/user-pool-id` (SRP)  |
+
+- **App do Amplify:** criado pela stack `gestor-gastos-dev-web` do infra-base (sem repositório conectado, então sem minutos de build). Ela publica o id em `/gestor-gastos/dev/frontend/amplify-app-id` e a URL (`https://main.<app-id>.amplifyapp.com`) em `/gestor-gastos/dev/frontend/url`.
+- **Rewrite de SPA:** rotas sem extensão (`/login`, `/perfil`) recebem o `index.html`; arquivos com extensão de estático (`.js`, `.css`, `.png`, `.ico`, `.ttf`, `.json`, `.webmanifest` etc.) são servidos como estão. É o que manterá o `sw.js` e o `manifest.json` da PWA (tarefa 11.1) funcionando, sem virar HTML.
+- **Cache:** `index.html`, `sw.js` e `manifest.json` com `no-cache`; bundles em `/_expo/static` imutáveis (têm hash no nome). Configurado no app do Amplify, porque em deploy manual ele não lê `customHttp.yml`.
+- **Testar no localhost contra dev:** `npm run env:dev` gera o `.env.local` a partir do SSM (AWS CLI, só leitura) e `npm run web` sobe o app falando com o Cognito e a API de dev. `npm run env:local` volta ao ambiente local.
+- **Roteiro de validação em dev:** [`docs/roteiro-dev.md`](docs/roteiro-dev.md). O primeiro admin é criado pelo CLI: `docs/primeiro-admin.md` do infra-base.
+
 ## Estrutura
 
 ```
@@ -66,7 +87,8 @@ As telas usam só os componentes e os `tokens` de `shared/ui`; nenhuma cor ou me
 | `/confirmar?email=` | Código de 6 números, com reenvio                                                                                           |
 | `/perfil`           | Nome, e-mail, papel, data de criação e "Sair" (o painel chega na fatia 4)                                                  |
 
-- **Cognito:** o app chama o Cognito direto pelo protocolo JSON da API (`X-Amz-Target`), sem o SDK da AWS. O login usa `USER_PASSWORD_AUTH`, o fluxo do cognito-local; o SRP da nuvem entra antes do deploy (6.6).
+- **Cognito:** o app chama o Cognito direto pelo protocolo JSON da API (`X-Amz-Target`), sem o SDK da AWS.
+- **Login:** na AWS, **SRP** (`USER_SRP_AUTH` + desafio `PASSWORD_VERIFIER`): a senha não sai do aparelho. O SRP, o SHA-256 e o HMAC ficam em `src/features/auth/api/srp.ts` e `sha256.ts`, sem biblioteca nova, e os testes conferem contra um vetor gerado pelo `amazon-cognito-identity-js`. No ambiente local, `USER_PASSWORD_AUTH`, porque o cognito-local não implementa SRP. Os bytes aleatórios vêm do Web Crypto (`shared/platform`); no iOS/Android isso ainda não existe e vai pedir o `expo-crypto` quando o app for para as lojas.
 - **Sessão:** o estado (`carregando`, `anonimo` ou `autenticado`) fica num store mínimo da feature, e o client HTTP renova o access token no primeiro 401.
 - **Credenciais:**
 
@@ -97,5 +119,5 @@ npm run verify   # typecheck + lint + format:check + check:boundaries + testes
 ```
 
 - **Pre-commit:** o hook do Husky roda o lint-staged, com ESLint e Prettier nos arquivos alterados.
-- **Esteira:** em todo PR roda o `verify`, a checagem do client gerado e o build web (`expo export -p web`).
+- **Esteira:** workflow reutilizável `frontend.yml` do infra-base: em todo PR as verificações do `verify`, a checagem do client gerado e o build web; na `main`, também o deploy em dev (ver "Na AWS").
 - **Fim de linha:** o `.gitattributes` força LF, inclusive no Windows, porque o Prettier exige.
