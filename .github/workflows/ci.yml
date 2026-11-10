@@ -1,10 +1,14 @@
-# Esteira de PR do front: tipos, lint, formatação, fronteiras, client gerado,
-# testes e build web.
-# O workflow reutilizável com deploy no Amplify entra na 6.3.
+# Esteira do front: chama o workflow reutilizável do infra-base (docs/workflows.md).
+#   - pull_request: "Validado localmente", tsc, eslint, prettier, fronteiras,
+#     client gerado em dia, jest e expo export -p web.
+#   - push na main: as mesmas verificações e deploy em dev no Amplify Hosting.
+# O app do Amplify é a stack gestor-gastos-dev-web do infra-base, que publica o
+# id em /gestor-gastos/dev/frontend/amplify-app-id (lido pelo workflow).
 name: ci
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, edited]
   push:
     branches: [main]
 
@@ -16,33 +20,17 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  verificar:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: npm
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm run lint
-      - run: npm run format:check
-      - run: npm run check:boundaries
-      - name: Client do BFF em dia com openapi/bff.yaml
-        run: |
-          npm run api:gerar
-          git diff --exit-code src/shared/api/generated
-      - run: npm run test:ci
-      - name: Build web (expo export)
-        env:
-          EXPO_PUBLIC_APP_ENV: local
-          EXPO_PUBLIC_API_URL: http://127.0.0.1:8080
-          EXPO_PUBLIC_COGNITO_REGION: us-east-1
-          EXPO_PUBLIC_COGNITO_CLIENT_ID: ci
-          EXPO_PUBLIC_COGNITO_ENDPOINT: http://localhost:9229
-        run: npx expo export -p web
+  esteira:
+    uses: Rossete-Inc/gestor-gastos-infra-base/.github/workflows/frontend.yml@main
+    permissions:
+      contents: read
+      id-token: write # OIDC na AWS, só no deploy
+    with:
+      verificacoes-extras: |
+        npm run api:gerar
+        git diff --exit-code src/shared/api/generated
+      # Publicados pelas stacks auth e api do infra-base (infra/README.md).
+      env-ssm: |
+        EXPO_PUBLIC_API_URL=/gestor-gastos/{env}/api/url
+        EXPO_PUBLIC_COGNITO_CLIENT_ID=/gestor-gastos/{env}/auth/user-pool-client-id
+        EXPO_PUBLIC_COGNITO_USER_POOL_ID=/gestor-gastos/{env}/auth/user-pool-id
