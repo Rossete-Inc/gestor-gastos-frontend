@@ -2,8 +2,9 @@ import { Tabs } from 'expo-router';
 
 import { TabBar, type IconName } from '@/shared/ui';
 
-// Abas da referência (TabBar). O Painel entra como primeira aba na fatia 4.
+// Abas da referência (TabBar), com o Painel primeiro.
 const abas: Record<string, { label: string; icon: IconName }> = {
+  painel: { label: 'Painel', icon: 'pie-chart' },
   gastos: { label: 'Gastos', icon: 'list' },
   categorias: { label: 'Categorias', icon: 'tag' },
   perfil: { label: 'Perfil', icon: 'user' },
@@ -25,6 +26,7 @@ export default function AbasLayout() {
         />
       )}
     >
+      <Tabs.Screen name="painel" />
       <Tabs.Screen name="gastos" />
       <Tabs.Screen name="categorias" />
       <Tabs.Screen name="perfil" />

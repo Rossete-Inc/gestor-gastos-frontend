@@ -42,15 +42,17 @@ export function useTelaGastoForm(id?: string) {
   });
 }
 
-// Toda escrita invalida as listas de qualquer mês e filtro, que são buscadas
-// de novo. Os formulários só ficam marcados como velhos (sem buscar agora):
-// o do gasto que acabou de mudar de data ou ser excluído daria 404 enquanto a
-// tela ainda está aberta. O painel (fatia 4) vai entrar nesta invalidação.
+// Toda escrita invalida as listas e o painel de qualquer mês e filtro, que
+// são buscados de novo (o painel fica sob gastosKeys.all, na feature
+// dashboard). Os formulários só ficam marcados como velhos (sem buscar
+// agora): o do gasto que acabou de mudar de data ou ser excluído daria 404
+// enquanto a tela ainda está aberta.
 function useInvalidarGastos() {
   const qc = useQueryClient();
   return () =>
     Promise.all([
       qc.invalidateQueries({ queryKey: [...gastosKeys.all, 'lista'] }),
+      qc.invalidateQueries({ queryKey: [...gastosKeys.all, 'painel'] }),
       qc.invalidateQueries({ queryKey: [...gastosKeys.all, 'form'], refetchType: 'none' }),
     ]);
 }

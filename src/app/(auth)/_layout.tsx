@@ -8,6 +8,6 @@ import { Carregando } from '@/shared/ui';
 export default function AuthLayout() {
   const { status } = useSessao();
   if (status === 'carregando') return <Carregando />;
-  if (status === 'autenticado') return <Redirect href="/gastos" />;
+  if (status === 'autenticado') return <Redirect href="/painel" />;
   return <Stack screenOptions={{ headerShown: false }} />;
 }
