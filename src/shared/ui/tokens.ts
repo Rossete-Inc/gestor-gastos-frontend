@@ -2,9 +2,10 @@
 //
 // PROVISÓRIOS: o Figma MCP atingiu o limite do plano Starter antes da leitura
 // das variáveis (arquivo 4d4L6ZY0vCBjriiN5bPjDx, página Fundamentos). Os
-// nomes seguem as coleções do Figma; os valores usam a mesma família de
-// cores do seed (paleta Tailwind). Quando o Figma liberar, troque só os
-// valores aqui: nenhum componente usa cor ou medida literal.
+// nomes seguem as coleções do Figma; os valores seguem as telas exportadas em
+// Gestor_de_Gastos_App (marca índigo, grupo Cartão violeta, Fixo azul-céu),
+// na paleta Tailwind. Quando o Figma liberar, troque só os valores aqui:
+// nenhum componente usa cor ou medida literal.
 
 const paleta = {
   slate50: '#F8FAFC',
@@ -26,6 +27,9 @@ const paleta = {
   amber700: '#B45309',
   indigo50: '#EEF2FF',
   indigo600: '#4F46E5',
+  indigo700: '#4338CA',
+  violet50: '#F5F3FF',
+  violet600: '#7C3AED',
   sky50: '#F0F9FF',
   sky700: '#0369A1',
 } as const;
@@ -41,9 +45,9 @@ export const tokens = {
     textMuted: paleta.slate500,
     textSubtle: paleta.slate400,
     textOnBrand: paleta.white,
-    brand: paleta.emerald600,
-    brandPressed: paleta.emerald700,
-    brandSoft: paleta.emerald50,
+    brand: paleta.indigo600,
+    brandPressed: paleta.indigo700,
+    brandSoft: paleta.indigo50,
     danger: paleta.red600,
     dangerPressed: paleta.red700,
     dangerSoft: paleta.red50,
@@ -52,8 +56,8 @@ export const tokens = {
     warning: paleta.amber700,
     warningSoft: paleta.amber50,
     focus: paleta.indigo600,
-    cartao: paleta.indigo600,
-    cartaoSoft: paleta.indigo50,
+    cartao: paleta.violet600,
+    cartaoSoft: paleta.violet50,
     fixo: paleta.sky700,
     fixoSoft: paleta.sky50,
     disabled: paleta.slate200,
