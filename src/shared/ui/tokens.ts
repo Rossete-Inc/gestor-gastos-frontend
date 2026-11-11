@@ -58,6 +58,8 @@ export const tokens = {
     fixoSoft: paleta.sky50,
     disabled: paleta.slate200,
     textDisabled: paleta.slate400,
+    // Fundo escurecido atrás de diálogos: slate900 com 50% de opacidade.
+    overlay: 'rgba(15, 23, 42, 0.5)',
   },
   space: { xxs: 2, xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 },
   radius: { sm: 6, md: 10, lg: 16, full: 999 },

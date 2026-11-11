@@ -1,5 +1,7 @@
+import { router } from 'expo-router';
+
 import { PerfilView } from '@/features/perfil';
 
 export default function Perfil() {
-  return <PerfilView />;
+  return <PerfilView onCategorias={() => router.push('/categorias')} />;
 }
