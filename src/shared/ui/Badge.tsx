@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { Text } from './Text';
 import { tokens, type CorToken } from './tokens';
@@ -17,10 +17,18 @@ const tons: Record<BadgeTone, { fundo: CorToken; cor: CorToken }> = {
   fixo: { fundo: 'fixoSoft', cor: 'fixo' },
 };
 
-export function Badge({ label, tone = 'neutral' }: { label: string; tone?: BadgeTone }) {
+type Props = {
+  label: string;
+  tone?: BadgeTone;
+  // Por padrão o selo se alinha ao início (numa coluna, não estica). Numa
+  // linha com alignItems: 'center', passe { alignSelf: 'center' }.
+  style?: StyleProp<ViewStyle>;
+};
+
+export function Badge({ label, tone = 'neutral', style }: Props) {
   const t = tons[tone];
   return (
-    <View style={[styles.container, { backgroundColor: tokens.color[t.fundo] }]}>
+    <View style={[styles.container, { backgroundColor: tokens.color[t.fundo] }, style]}>
       <Text variant="caption" color={t.cor} style={styles.texto}>
         {label}
       </Text>
