@@ -29,19 +29,26 @@ const nomes = {
   inbox: 'inbox',
   wallet: 'credit-card',
   edit: 'edit-2',
+  check: 'check',
 } as const satisfies Record<string, keyof typeof Feather.glyphMap>;
 
 export type IconName = keyof typeof nomes;
 
-type Props = { name: IconName; color?: CorToken; size?: number };
+type Props = {
+  name: IconName;
+  color?: CorToken;
+  /** Cor que é dado e não token de UI, como a cor de uma categoria. */
+  colorValue?: string;
+  size?: number;
+};
 
 /** Ícone decorativo; quem precisa de rótulo é o componente que o contém. */
-export function Icon({ name, color = 'text', size = tokens.size.icon }: Props) {
+export function Icon({ name, color = 'text', colorValue, size = tokens.size.icon }: Props) {
   return (
     <Feather
       name={nomes[name]}
       size={size}
-      color={tokens.color[color]}
+      color={colorValue ?? tokens.color[color]}
       accessibilityElementsHidden
       importantForAccessibility="no"
     />
