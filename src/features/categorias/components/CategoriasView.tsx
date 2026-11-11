@@ -45,13 +45,20 @@ export function CategoriasView({ onNova, onVoltar }: Props) {
         </>
       ) : (
         <>
-          <Button label="Nova categoria" icon="plus" onPress={onNova} />
+          <Text color="textMuted">
+            As categorias padrão valem para todos. Crie as suas para organizar melhor.
+          </Text>
           {excluir.isError && (
             <Banner tone={tomDoErro(excluir.error)} message={mensagem(excluir.error)} />
           )}
           {GRUPOS.map((g) => (
             <View key={g.valor} style={styles.grupo}>
-              <Text variant="subtitle" accessibilityRole="header">
+              <Text
+                variant="caption"
+                color="textMuted"
+                accessibilityRole="header"
+                style={styles.tituloGrupo}
+              >
                 {g.label}
               </Text>
               <View style={styles.lista}>
@@ -67,6 +74,7 @@ export function CategoriasView({ onNova, onVoltar }: Props) {
               </View>
             </View>
           ))}
+          <Button label="Nova categoria" variant="secondary" onPress={onNova} />
         </>
       )}
       <ConfirmDialog
@@ -91,17 +99,20 @@ function ItemCategoria({ categoria, onExcluir }: { categoria: Categoria; onExclu
         {categoria.nome}
       </Text>
       {categoria.padrao ? (
-        <Badge label="Padrão" />
+        <Badge label="Padrão" style={styles.selo} />
       ) : (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Excluir ${categoria.nome}`}
-          onPress={onExcluir}
-          hitSlop={tokens.space.sm}
-          style={styles.excluir}
-        >
-          <Icon name="trash" color="danger" size={tokens.size.iconSm} />
-        </Pressable>
+        <>
+          <Badge label="Personalizada" tone="brand" style={styles.selo} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Excluir ${categoria.nome}`}
+            onPress={onExcluir}
+            hitSlop={tokens.space.sm}
+            style={styles.excluir}
+          >
+            <Icon name="trash" color="danger" size={tokens.size.iconSm} />
+          </Pressable>
+        </>
       )}
     </View>
   );
@@ -119,6 +130,9 @@ function mensagem(e: unknown): string {
 
 const styles = StyleSheet.create({
   grupo: { gap: tokens.space.sm },
+  // Legenda do grupo em maiúsculas, como na tela de referência; o leitor de
+  // tela continua lendo "Cartão" e "Fixo".
+  tituloGrupo: { textTransform: 'uppercase', fontWeight: tokens.font.weight.medium },
   lista: {
     borderRadius: tokens.radius.lg,
     borderWidth: 1,
@@ -137,6 +151,8 @@ const styles = StyleSheet.create({
   },
   cor: { width: tokens.space.md, height: tokens.space.md, borderRadius: tokens.radius.full },
   nome: { flex: 1 },
+  // O Badge alinha ao início por padrão; na linha, fica no meio da altura.
+  selo: { alignSelf: 'center' },
   excluir: {
     width: tokens.size.touch,
     height: tokens.size.touch,

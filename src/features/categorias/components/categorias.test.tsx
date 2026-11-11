@@ -1,5 +1,6 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react-native';
 import { http, HttpResponse } from 'msw';
+import { StyleSheet } from 'react-native';
 
 import { configurarAutenticacao } from '@/shared/api';
 
@@ -66,6 +67,15 @@ describe('CategoriasView', () => {
     expect(screen.getByText('Aluguel')).toBeOnTheScreen();
     // Só a personalizada tem o botão de excluir; as padrão mostram o selo.
     expect(screen.getAllByText('Padrão')).toHaveLength(2);
+    expect(screen.getAllByText('Personalizada')).toHaveLength(1);
+    // O selo fica no meio da altura da linha, não grudado no topo.
+    for (const selo of screen.getAllByText('Padrão')) {
+      let container = selo.parent;
+      while (container && !StyleSheet.flatten(container.props.style)?.alignSelf) {
+        container = container.parent;
+      }
+      expect(StyleSheet.flatten(container?.props.style)?.alignSelf).toBe('center');
+    }
     expect(screen.getByRole('button', { name: 'Excluir Pet' })).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: 'Excluir Alimentação' })).toBeNull();
   });
