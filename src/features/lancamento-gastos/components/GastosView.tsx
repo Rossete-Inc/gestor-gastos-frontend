@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { ApiError } from '@/shared/api';
 import { formatarCentavos, mesAtual, rotuloDoDia, rotuloDoMes } from '@/shared/lib';
 import {
   Banner,
   Button,
+  ExpenseItem,
+  ExpenseList,
   Fab,
   Icon,
   MonthSelector,
@@ -96,11 +98,11 @@ export function GastosView({ onNovo, onAbrir, mesInicial }: Props) {
               <Text variant="label" color="textMuted" accessibilityRole="header">
                 {rotuloDoDia(dia.data)}
               </Text>
-              <View style={styles.lista}>
+              <ExpenseList>
                 {dia.gastos.map((g) => (
                   <ItemGasto key={g.id} gasto={g} onPress={() => onAbrir(g.id)} />
                 ))}
-              </View>
+              </ExpenseList>
             </View>
           ))}
           {gastos.isFetchNextPageError && (
@@ -143,37 +145,16 @@ function secoesDoFiltro(cats: CategoriasPorGrupo | undefined, grupo: FiltroGrupo
 }
 
 function ItemGasto({ gasto, onPress }: { gasto: Gasto; onPress: () => void }) {
-  const titulo = gasto.descricao || gasto.categoria.nome;
-  const detalhe = gasto.recorrente ? `${gasto.categoria.nome} · recorrente` : gasto.categoria.nome;
-  const valor = formatarCentavos(gasto.valorCentavos);
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${titulo}, ${detalhe}, ${valor}`}
+    <ExpenseItem
+      titulo={gasto.descricao || gasto.categoria.nome}
+      detalhe={gasto.recorrente ? `${gasto.categoria.nome} · recorrente` : gasto.categoria.nome}
+      valor={formatarCentavos(gasto.valorCentavos)}
+      cor={gasto.categoria.cor}
+      icone={gasto.grupo === 'FIXO' ? 'repeat' : 'credit-card'}
       accessibilityHint="Abre o gasto para editar ou excluir"
       onPress={onPress}
-      style={({ pressed }) => [styles.item, pressed && styles.pressionado]}
-    >
-      {/* Ícone e fundo na cor da categoria (dado, não token): 13% de opacidade no fundo. */}
-      <View style={[styles.icone, { backgroundColor: `${gasto.categoria.cor}22` }]}>
-        <Icon
-          name={gasto.grupo === 'FIXO' ? 'repeat' : 'credit-card'}
-          colorValue={gasto.categoria.cor}
-          size={tokens.size.iconSm}
-        />
-      </View>
-      <View style={styles.textos}>
-        <Text variant="body" numberOfLines={1} style={styles.titulo}>
-          {titulo}
-        </Text>
-        <Text variant="caption" color="textMuted" numberOfLines={1}>
-          {detalhe}
-        </Text>
-      </View>
-      <Text variant="body" style={styles.valor}>
-        {valor}
-      </Text>
-    </Pressable>
+    />
   );
 }
 
@@ -203,34 +184,6 @@ function mensagem(e: unknown): string {
 
 const styles = StyleSheet.create({
   dia: { gap: tokens.space.sm },
-  lista: {
-    borderRadius: tokens.radius.lg,
-    borderWidth: 1,
-    borderColor: tokens.color.border,
-    backgroundColor: tokens.color.surface,
-    overflow: 'hidden',
-  },
-  item: {
-    minHeight: tokens.size.touch + tokens.space.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: tokens.space.md,
-    paddingHorizontal: tokens.space.lg,
-    paddingVertical: tokens.space.md,
-    borderBottomWidth: 1,
-    borderBottomColor: tokens.color.border,
-  },
-  pressionado: { backgroundColor: tokens.color.surfaceMuted },
-  icone: {
-    width: tokens.size.touch - tokens.space.sm,
-    height: tokens.size.touch - tokens.space.sm,
-    borderRadius: tokens.radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  textos: { flex: 1, gap: tokens.space.xxs },
-  titulo: { fontWeight: tokens.font.weight.semibold },
-  valor: { fontWeight: tokens.font.weight.bold },
   vazio: { alignItems: 'center', gap: tokens.space.md, paddingVertical: tokens.space.xxl },
   folgaDoFab: { height: tokens.size.touch + tokens.space.xl },
 });
