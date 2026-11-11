@@ -12,6 +12,7 @@ const server = usarServidor();
 // A feature perfil só conhece a API pública de auth: o logout é um mock de
 // useSair, e o token vem direto do client HTTP (shared/api).
 const mockSair = jest.fn();
+const mockCategorias = jest.fn();
 jest.mock('@/features/auth', () => ({ useSair: () => ({ mutate: mockSair }) }));
 
 beforeEach(() => {
@@ -27,7 +28,7 @@ afterEach(() => configurarAutenticacao(null));
 
 it('mostra nome, e-mail, papel e data de criação (spec, "Ver perfil")', async () => {
   server.use(meQueAceita('access-1'));
-  await renderizar(<PerfilView />);
+  await renderizar(<PerfilView onCategorias={mockCategorias} />);
 
   expect(await screen.findByText('Ana Souza')).toBeOnTheScreen();
   expect(screen.getByText('ana@x.com')).toBeOnTheScreen();
@@ -37,13 +38,13 @@ it('mostra nome, e-mail, papel e data de criação (spec, "Ver perfil")', async 
 
 it('mostra o papel de administrador', async () => {
   server.use(meQueAceita('access-1', { ...perfilAna, papel: 'admin' }));
-  await renderizar(<PerfilView />);
+  await renderizar(<PerfilView onCategorias={mockCategorias} />);
   expect(await screen.findByText('Administrador')).toBeOnTheScreen();
 });
 
 it('mostra o carregamento enquanto busca', async () => {
   server.use(meQueAceita('access-1'));
-  await renderizar(<PerfilView />);
+  await renderizar(<PerfilView onCategorias={mockCategorias} />);
   expect(screen.getByRole('progressbar', { name: 'Carregando perfil…' })).toBeOnTheScreen();
   expect(await screen.findByText('Ana Souza')).toBeOnTheScreen();
 });
@@ -67,7 +68,7 @@ it('erro do BFF aparece com a mensagem e permite tentar de novo', async () => {
         : HttpResponse.json(perfilAna);
     }),
   );
-  await renderizar(<PerfilView />);
+  await renderizar(<PerfilView onCategorias={mockCategorias} />);
   expect(await screen.findByRole('alert')).toHaveTextContent(/Erro interno\. Tente novamente\./);
 
   await fireEvent.press(screen.getByRole('button', { name: 'Tentar de novo' }));
@@ -76,14 +77,22 @@ it('erro do BFF aparece com a mensagem e permite tentar de novo', async () => {
 
 it('resposta fora do contrato é tratada como erro', async () => {
   server.use(http.get(`${BFF}/me`, () => HttpResponse.json({ id: 'u-1' })));
-  await renderizar(<PerfilView />);
+  await renderizar(<PerfilView onCategorias={mockCategorias} />);
   expect(await screen.findByRole('alert')).toHaveTextContent(/Não foi possível carregar o perfil/);
 });
 
 it('"Sair" aciona o logout da feature auth (spec, "Usuário sai do app")', async () => {
   server.use(meQueAceita('access-1'));
-  await renderizar(<PerfilView />);
+  await renderizar(<PerfilView onCategorias={mockCategorias} />);
   await screen.findByText('Ana Souza');
   await fireEvent.press(screen.getByRole('button', { name: 'Sair' }));
   expect(mockSair).toHaveBeenCalledTimes(1);
+});
+
+it('"Categorias" abre a tela de categorias', async () => {
+  server.use(meQueAceita('access-1'));
+  await renderizar(<PerfilView onCategorias={mockCategorias} />);
+  await screen.findByText('Ana Souza');
+  await fireEvent.press(screen.getByRole('button', { name: 'Categorias' }));
+  expect(mockCategorias).toHaveBeenCalledTimes(1);
 });
