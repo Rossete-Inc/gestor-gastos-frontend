@@ -1,6 +1,7 @@
 // Design system. Telas e features usam só estes componentes e os tokens;
 // nenhuma cor ou medida literal fora daqui.
 export { ActionSheet } from './ActionSheet';
+export { AvisosDoApp } from './AvisosDoApp';
 export type { AcaoSheet } from './ActionSheet';
 export { Badge } from './Badge';
 export type { BadgeTone } from './Badge';

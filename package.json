@@ -59,6 +59,7 @@
     "verify": "npm run typecheck && npm run lint && npm run format:check && npm run check:boundaries && npm test -- --ci",
     "prepare": "husky",
     "api:gerar": "orval",
+    "pwa:sw": "node scripts/gerar-sw.js",
     "test": "jest",
     "test:ci": "jest --ci --coverage"
   },
