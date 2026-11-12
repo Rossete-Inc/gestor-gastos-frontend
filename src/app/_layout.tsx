@@ -5,7 +5,11 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { useIniciarSessao } from '@/features/auth';
 import { queryClient } from '@/shared/api';
+import { prepararTelas } from '@/shared/platform';
 import { AvisosDoApp } from '@/shared/ui';
+
+// Antes de qualquer navegador montar: na web, esconde as telas fora de foco.
+prepararTelas();
 
 // Layout raiz: providers, o início da sessão e os avisos da PWA (sem conexão,
 // versão nova). As guardas ficam nos layouts dos grupos (auth) e (app).
