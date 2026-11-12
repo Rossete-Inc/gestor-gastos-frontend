@@ -87,6 +87,21 @@ describe('registrarServiceWorker', () => {
     expect(aviso).not.toHaveBeenCalled();
   });
 
+  it('não recarrega quando o primeiro service worker assume (clients.claim)', async () => {
+    const { serviceWorker } = navegador({ controller: false });
+    const recarregar = jest.fn();
+    registrarServiceWorker(jest.fn(), { habilitado: true, recarregar });
+    await esperar();
+    serviceWorker.controller = {};
+    serviceWorker.emitir('controllerchange');
+    expect(recarregar).not.toHaveBeenCalled();
+
+    // Uma versão nova depois disso, na mesma aba, recarrega normalmente.
+    serviceWorker.controller = {};
+    serviceWorker.emitir('controllerchange');
+    expect(recarregar).toHaveBeenCalledTimes(1);
+  });
+
   it('segue sem service worker se o registro falhar', async () => {
     const { serviceWorker } = navegador();
     serviceWorker.register.mockRejectedValueOnce(new Error('sem https'));

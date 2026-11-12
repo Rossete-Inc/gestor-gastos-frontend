@@ -4,7 +4,7 @@
 // O usuário é novo a cada execução (e-mail único em example.com). A
 // confirmação usa AdminConfirmSignUp, porque o código vai por e-mail. No fim,
 // mesmo com falha, o usuário é excluído pelo caminho do app (e2e/aws.ts).
-import { expect, test } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
 
 import { confirmarCadastro, excluirUsuario, lerAmbiente, senhaAleatoria } from './aws';
 
@@ -14,16 +14,41 @@ const senha = senhaAleatoria();
 const descricao = `E2E ${id}`;
 const amb = lerAmbiente();
 
+/**
+ * Preenche um campo e confere o valor. O site é exportado como HTML estático:
+ * até o React assumir a página, o que se digita é descartado na hidratação.
+ * Por isso repete até o valor ficar.
+ */
+async function preencher(page: Page, rotulo: string, valor: string): Promise<void> {
+  const campo = page.getByLabel(rotulo, { exact: true });
+  await expect(async () => {
+    await campo.fill(valor);
+    await expect(campo).toHaveValue(valor, { timeout: 1_000 });
+  }).toPass();
+}
+
+/**
+ * Abre a rota e espera o app ficar estável: o service worker da PWA assumindo
+ * a página (na primeira visita) e a rede parada.
+ */
+async function abrir(page: Page, rota: string): Promise<void> {
+  await page.goto(rota);
+  await page.waitForFunction(
+    () => !('serviceWorker' in navigator) || navigator.serviceWorker.controller !== null,
+  );
+  await page.waitForLoadState('networkidle');
+}
+
 test.afterAll(async () => {
   await excluirUsuario(amb, email);
 });
 
 test('cadastro, login e ciclo de um gasto até o painel', async ({ page }) => {
   await test.step('cadastro', async () => {
-    await page.goto('/cadastro');
-    await page.getByLabel('Nome', { exact: true }).fill('E2E Teste');
-    await page.getByLabel('E-mail', { exact: true }).fill(email);
-    await page.getByLabel('Senha', { exact: true }).fill(senha);
+    await abrir(page, '/cadastro');
+    await preencher(page, 'Nome', 'E2E Teste');
+    await preencher(page, 'E-mail', email);
+    await preencher(page, 'Senha', senha);
     await page.getByRole('button', { name: 'Criar conta', exact: true }).click();
     await expect(page.getByText('Confirme seu e-mail')).toBeVisible();
   });
@@ -31,8 +56,8 @@ test('cadastro, login e ciclo de um gasto até o painel', async ({ page }) => {
   await test.step('confirmação (pelo Cognito) e login', async () => {
     confirmarCadastro(amb, email);
     await page.getByRole('button', { name: 'Voltar para o login' }).click();
-    await page.getByLabel('E-mail', { exact: true }).fill(email);
-    await page.getByLabel('Senha', { exact: true }).fill(senha);
+    await preencher(page, 'E-mail', email);
+    await preencher(page, 'Senha', senha);
     await page.getByRole('button', { name: 'Entrar', exact: true }).click();
     await expect(page.getByRole('tab', { name: 'Painel' })).toBeVisible();
   });

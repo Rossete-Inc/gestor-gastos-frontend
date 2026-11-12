@@ -21,9 +21,15 @@ export function registrarServiceWorker(
   if (!habilitado || typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
   const sw = navigator.serviceWorker;
 
+  // Na primeira visita, o clients.claim() do sw.js troca "sem controller" pelo
+  // service worker recém-instalado e dispara controllerchange. Isso não é
+  // versão nova, e recarregar apagaria o que a pessoa já digitou na tela.
+  let controlador = sw.controller;
   let recarregou = false;
   sw.addEventListener('controllerchange', () => {
-    if (recarregou) return;
+    const anterior = controlador;
+    controlador = sw.controller;
+    if (!anterior || recarregou) return;
     recarregou = true;
     recarregar();
   });

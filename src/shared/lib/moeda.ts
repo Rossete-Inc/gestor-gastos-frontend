@@ -34,7 +34,9 @@ export function centavosDeDigitos(texto: string): number {
  * Texto sem a máscara (colado ou digitado do zero) é lido como centavos.
  */
 export function centavosAposEdicao(anterior: number, texto: string): number {
-  if (!texto.trimStart().startsWith('R$')) return centavosDeDigitos(texto);
+  // Um dígito digitado antes do "R$" (cursor no início, como depois do Tab)
+  // ainda é edição do texto formatado: o "R$" segue lá sem os dígitos.
+  if (!texto.replace(/\d/g, '').includes('R$')) return centavosDeDigitos(texto);
   const antes = formatarCentavos(anterior).replace(/\D/g, '');
   const depois = texto.replace(/\D/g, '');
   if (depois.length < antes.length) {
