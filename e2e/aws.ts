@@ -1,8 +1,9 @@
 // Acesso à AWS do E2E (tarefas 12.1 e 12.2), pelo AWS CLI, sem SDK no projeto.
 //
 // Na esteira roda com a role de deploy do frontend em dev, que tem as ações
-// cognito-idp da política E2ENoCognito (infra-base, infra/cicd.go). Fora dela,
-// vale qualquer credencial com essas permissões e leitura do SSM de dev.
+// cognito-idp da política E2ENoCognito e o dynamodb:Query da E2ELeituraDosDados
+// (infra-base, infra/cicd.go). Fora dela, vale qualquer credencial com essas
+// permissões e leitura do SSM de dev.
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 
@@ -30,7 +31,13 @@ function ssm(nome: string): string {
   return (JSON.parse(saida) as { Parameter: { Value: string } }).Parameter.Value;
 }
 
-export type Ambiente = { poolId: string; clientId: string; apiUrl: string };
+export type Ambiente = {
+  poolId: string;
+  clientId: string;
+  apiUrl: string;
+  tabelaGastos: string;
+  tabelaCategorias: string;
+};
 
 /** Lê do SSM o que o E2E precisa do ambiente (publicado pelas stacks auth e api). */
 export function lerAmbiente(): Ambiente {
@@ -38,6 +45,8 @@ export function lerAmbiente(): Ambiente {
     poolId: ssm('auth/user-pool-id'),
     clientId: ssm('auth/user-pool-client-id'),
     apiUrl: ssm('api/url').replace(/\/$/, ''),
+    tabelaGastos: ssm('expenses/table-name'),
+    tabelaCategorias: ssm('categories/table-name'),
   };
 }
 
@@ -76,28 +85,81 @@ export function apagarNoCognito(amb: Ambiente, email: string): void {
   aws('cognito-idp', 'admin-delete-user', '--user-pool-id', amb.poolId, '--username', email);
 }
 
-/**
- * Garante o admin do E2E (como o usuário do smoke do BFF: sem convite, senha
- * nova a cada execução, nada guardado) e devolve um access token dele. O GET
- * /me cria o perfil com papel admin no primeiro acesso.
- */
-export async function tokenDoAdmin(amb: Ambiente): Promise<string> {
-  if (subDoUsuario(amb, EMAIL_ADMIN) === null) {
+/** Conta já confirmada, sem e-mail de convite, com a senha dada. */
+function criarConta(amb: Ambiente, email: string, nome: string, senha: string): void {
+  if (subDoUsuario(amb, email) === null) {
     aws(
       'cognito-idp',
       'admin-create-user',
       '--user-pool-id',
       amb.poolId,
       '--username',
-      EMAIL_ADMIN,
+      email,
       '--message-action',
       'SUPPRESS',
       '--user-attributes',
-      `Name=email,Value=${EMAIL_ADMIN}`,
+      `Name=email,Value=${email}`,
       'Name=email_verified,Value=true',
-      'Name=name,Value=E2E Admin',
+      `Name=name,Value=${nome}`,
     );
   }
+  // Pela entrada JSON, para a senha não aparecer na linha de comando.
+  aws(
+    'cognito-idp',
+    'admin-set-user-password',
+    '--cli-input-json',
+    JSON.stringify({ UserPoolId: amb.poolId, Username: email, Password: senha, Permanent: true }),
+  );
+}
+
+/** Access token pelo fluxo ADMIN_USER_PASSWORD_AUTH (só com credenciais IAM). */
+function tokenDe(amb: Ambiente, email: string, senha: string): string {
+  const saida = aws(
+    'cognito-idp',
+    'admin-initiate-auth',
+    '--cli-input-json',
+    JSON.stringify({
+      UserPoolId: amb.poolId,
+      ClientId: amb.clientId,
+      AuthFlow: 'ADMIN_USER_PASSWORD_AUTH',
+      AuthParameters: { USERNAME: email, PASSWORD: senha },
+    }),
+  );
+  return (JSON.parse(saida) as { AuthenticationResult: { AccessToken: string } })
+    .AuthenticationResult.AccessToken;
+}
+
+/** Chama o BFF com o token dado e devolve o JSON da resposta (erro se não for 2xx). */
+export async function api<T>(
+  amb: Ambiente,
+  token: string,
+  metodo: string,
+  caminho: string,
+  corpo?: unknown,
+): Promise<T> {
+  const resp = await fetch(`${amb.apiUrl}${caminho}`, {
+    method: metodo,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(corpo === undefined ? {} : { 'Content-Type': 'application/json' }),
+    },
+    body: corpo === undefined ? undefined : JSON.stringify(corpo),
+  });
+  const texto = await resp.text();
+  if (!resp.ok) throw new Error(`${metodo} ${caminho}: ${resp.status} ${texto}`);
+  return (texto ? JSON.parse(texto) : undefined) as T;
+}
+
+export type Conta = { email: string; senha: string; token: string; id: string };
+
+/**
+ * Garante o admin do E2E (como o usuário do smoke do BFF: sem convite, senha
+ * nova a cada execução, nada guardado) e devolve a conta dele. O GET /me cria
+ * o perfil com papel admin no primeiro acesso.
+ */
+export async function contaDoAdmin(amb: Ambiente): Promise<Conta> {
+  const senha = senhaAleatoria();
+  criarConta(amb, EMAIL_ADMIN, 'E2E Admin', senha);
   aws(
     'cognito-idp',
     'admin-add-user-to-group',
@@ -108,41 +170,45 @@ export async function tokenDoAdmin(amb: Ambiente): Promise<string> {
     '--group-name',
     GRUPO_ADMIN,
   );
-  const senha = senhaAleatoria();
-  // Pela entrada JSON, para a senha não aparecer na linha de comando.
-  aws(
-    'cognito-idp',
-    'admin-set-user-password',
-    '--cli-input-json',
-    JSON.stringify({
-      UserPoolId: amb.poolId,
-      Username: EMAIL_ADMIN,
-      Password: senha,
-      Permanent: true,
-    }),
-  );
-  const saida = aws(
-    'cognito-idp',
-    'admin-initiate-auth',
-    '--cli-input-json',
-    JSON.stringify({
-      UserPoolId: amb.poolId,
-      ClientId: amb.clientId,
-      AuthFlow: 'ADMIN_USER_PASSWORD_AUTH',
-      AuthParameters: { USERNAME: EMAIL_ADMIN, PASSWORD: senha },
-    }),
-  );
-  const token = (JSON.parse(saida) as { AuthenticationResult: { AccessToken: string } })
-    .AuthenticationResult.AccessToken;
-  const me = await fetch(`${amb.apiUrl}/me`, { headers: { Authorization: `Bearer ${token}` } });
-  if (!me.ok) throw new Error(`GET /me do admin do E2E: ${me.status} ${await me.text()}`);
-  const perfil = (await me.json()) as { papel?: string };
+  const token = tokenDe(amb, EMAIL_ADMIN, senha);
+  const perfil = await api<{ id: string; papel?: string }>(amb, token, 'GET', '/me');
   if (perfil.papel !== 'admin') {
     throw new Error(
       `O perfil de ${EMAIL_ADMIN} não é admin (papel ${perfil.papel}). Promova-o na tela de usuários.`,
     );
   }
-  return token;
+  return { email: EMAIL_ADMIN, senha, token, id: perfil.id };
+}
+
+/** Pessoa de teste (cliente) já confirmada e com perfil criado. */
+export async function contaDeCliente(amb: Ambiente, email: string, nome: string): Promise<Conta> {
+  const senha = senhaAleatoria();
+  criarConta(amb, email, nome, senha);
+  const token = tokenDe(amb, email, senha);
+  const perfil = await api<{ id: string }>(amb, token, 'GET', '/me');
+  return { email, senha, token, id: perfil.id };
+}
+
+/** Itens com PK=USER#<id> nas tabelas de gastos e de categorias. */
+export function contarDados(amb: Ambiente, id: string): { gastos: number; categorias: number } {
+  const contar = (tabela: string) =>
+    (
+      JSON.parse(
+        aws(
+          'dynamodb',
+          'query',
+          '--table-name',
+          tabela,
+          '--key-condition-expression',
+          'PK = :pk',
+          '--expression-attribute-values',
+          JSON.stringify({ ':pk': { S: `USER#${id}` } }),
+          '--select',
+          'COUNT',
+        ),
+      ) as { Count: number }
+    ).Count;
+  return { gastos: contar(amb.tabelaGastos), categorias: contar(amb.tabelaCategorias) };
 }
 
 /**
@@ -153,7 +219,7 @@ export async function tokenDoAdmin(amb: Ambiente): Promise<string> {
 export async function excluirUsuario(amb: Ambiente, email: string): Promise<void> {
   const sub = subDoUsuario(amb, email);
   if (sub === null) return;
-  const token = await tokenDoAdmin(amb);
+  const { token } = await contaDoAdmin(amb);
   const resp = await fetch(`${amb.apiUrl}/admin/usuarios/${sub}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
