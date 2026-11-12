@@ -41,7 +41,8 @@ describe('centavosAposEdicao', () => {
   };
 
   it('dígitos entram pela direita, com o cursor em qualquer lugar', () => {
-    for (const p of [3, 4, 5, 7]) {
+    // 0 a 2: antes ou dentro do "R$" (cursor no início do campo).
+    for (const p of [0, 1, 2, 3, 4, 5, 7]) {
       let c = 0;
       for (const tecla of '4590') c = digitar(c, tecla, p);
       expect(c).toBe(4590);
