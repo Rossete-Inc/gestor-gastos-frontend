@@ -1,5 +1,7 @@
 // Design system. Telas e features usam só estes componentes e os tokens;
 // nenhuma cor ou medida literal fora daqui.
+export { ActionSheet } from './ActionSheet';
+export type { AcaoSheet } from './ActionSheet';
 export { Badge } from './Badge';
 export type { BadgeTone } from './Badge';
 export { Banner } from './Banner';
@@ -31,5 +33,6 @@ export { SummaryCard } from './SummaryCard';
 export { Text } from './Text';
 export type { TextVariant } from './Text';
 export { TextField } from './TextField';
+export { UserRow, UserList } from './UserRow';
 export { tokens } from './tokens';
 export type { CorToken, Tokens } from './tokens';

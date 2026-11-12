@@ -8,6 +8,8 @@ import { tokens } from './tokens';
 // Modal do React Native, que funciona na web e no nativo; o Alert.alert não
 // mostra botões no react-native-web.
 type Props = {
+  /** Estilo do botão de confirmar: danger (padrão) para ações destrutivas. */
+  confirmVariant?: 'danger' | 'primary';
   visible: boolean;
   title: string;
   message: string;
@@ -26,6 +28,7 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
   loading,
+  confirmVariant = 'danger',
 }: Props) {
   return (
     <Modal transparent visible={visible} animationType="fade" onRequestClose={onCancel}>
@@ -41,7 +44,12 @@ export function ConfirmDialog({
           </Text>
           <Text color="textMuted">{message}</Text>
           <View style={styles.acoes}>
-            <Button label={confirmLabel} variant="danger" onPress={onConfirm} loading={loading} />
+            <Button
+              label={confirmLabel}
+              variant={confirmVariant}
+              onPress={onConfirm}
+              loading={loading}
+            />
             <Button label="Cancelar" variant="secondary" onPress={onCancel} disabled={loading} />
           </View>
         </Pressable>

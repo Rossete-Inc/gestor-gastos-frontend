@@ -15,3 +15,13 @@ export function usePerfil() {
     queryFn: async () => bffSchemas.ObterMeResponse.parse(await bff.obterMe()),
   });
 }
+
+/**
+ * Papel do usuário logado, pelo perfil do /me. Serve só para mostrar ou
+ * esconder a área de administração: quem decide o acesso é o BFF, pelo
+ * grupo no token (403 para quem não é admin).
+ */
+export function useEhAdmin() {
+  const perfil = usePerfil();
+  return { carregando: perfil.isPending, admin: perfil.data?.papel === 'admin' };
+}
