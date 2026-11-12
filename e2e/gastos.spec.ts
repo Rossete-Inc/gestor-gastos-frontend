@@ -39,6 +39,33 @@ async function abrir(page: Page, rota: string): Promise<void> {
   await page.waitForLoadState('networkidle');
 }
 
+// Na falha, o log da esteira é tudo o que se vê (o relatório do Playwright não
+// é publicado). Imprime a URL, a árvore de acessibilidade e, para cada botão
+// visível, o que está por cima do centro dele.
+test.afterEach(async ({ page }, info) => {
+  if (info.status === info.expectedStatus) return;
+  console.log(`URL na falha: ${page.url()}`);
+  console.log(`Árvore de acessibilidade:
+${await page.locator('body').ariaSnapshot()}`);
+  const cobertos = await page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>('[role="button"], button')]
+      .filter((b) => b.offsetParent !== null)
+      .map((b) => {
+        const r = b.getBoundingClientRect();
+        const topo = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+        if (!topo || b.contains(topo)) return null;
+        const camada = topo.closest('[class]')?.parentElement;
+        return {
+          botao: b.getAttribute('aria-label') ?? b.innerText.slice(0, 40),
+          porCima: topo.outerHTML.slice(0, 200),
+          camada: camada?.innerText.replace(/\s+/g, ' ').slice(0, 200) ?? '',
+        };
+      })
+      .filter(Boolean),
+  );
+  console.log(`Botões cobertos: ${JSON.stringify(cobertos, null, 1)}`);
+});
+
 test.afterAll(async () => {
   await excluirUsuario(amb, email);
 });
