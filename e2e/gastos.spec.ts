@@ -91,6 +91,9 @@ test('cadastro, login e ciclo de um gasto até o painel', async ({ page }) => {
 
   await test.step('lançar gasto', async () => {
     await page.getByRole('tab', { name: 'Gastos' }).click();
+    // A aba Painel, fora de foco, tem o mesmo FAB no mesmo lugar: precisa
+    // estar escondida, senão ela fica com o clique (bug achado na esteira).
+    await expect(page.locator('[aria-label="Novo gasto"]:visible')).toHaveCount(1);
     await page.getByRole('button', { name: 'Novo gasto' }).click();
     await page.getByLabel('Valor', { exact: true }).pressSequentially('12345');
     await expect(page.getByLabel('Valor', { exact: true })).toHaveValue('R$ 123,45');
