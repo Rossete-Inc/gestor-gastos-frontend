@@ -34,3 +34,7 @@ jobs:
         EXPO_PUBLIC_API_URL=/gestor-gastos/{env}/api/url
         EXPO_PUBLIC_COGNITO_CLIENT_ID=/gestor-gastos/{env}/auth/user-pool-client-id
         EXPO_PUBLIC_COGNITO_USER_POOL_ID=/gestor-gastos/{env}/auth/user-pool-id
+      # PWA (tarefa 11.1): service worker gerado sobre o dist de cada export e
+      # smoke test do manifest, do sw.js e do rewrite em dev.
+      pos-export: npm run pwa:sw -- "$DIST_DIR"
+      smoke-test: bash scripts/smoke-pwa.sh

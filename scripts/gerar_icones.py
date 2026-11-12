@@ -2,6 +2,8 @@
 em âmbar, sobre o verde da marca (tokens.color.brand = #059669).
 
 Uso, na raiz do repositório: python -I scripts/gerar_icones.py assets [previa.png]
+
+Também gera os ícones da PWA (tarefa 11.1) em public/icons, ao lado de assets.
 """
 import math
 import sys
@@ -55,6 +57,7 @@ def main(dest: Path):
     desenhar(512, None, 0.24).save(dest / "android-icon-foreground.png")
     # Monocromático (Android 13+): o sistema pinta pela transparência; tudo numa cor só.
     desenhar(432, None, 0.24, corpo=BRANCO, fatia=BRANCO).save(dest / "android-icon-monochrome.png")
+    pwa(dest.parent / "public" / "icons")
     # Prévia lado a lado para conferir, só se pedida (não vai para assets/).
     if len(sys.argv) < 3:
         return
@@ -65,6 +68,19 @@ def main(dest: Path):
     f16 = desenhar(16, VERDE, 0.34, cantos_rel=0.22).resize((128, 128), Image.NEAREST)
     prev.paste(f16, (1044, 220), f16)
     prev.save(Path(sys.argv[2]))
+
+
+def pwa(dest: Path):
+    """Ícones do manifest.json e do iOS (public/index.html)."""
+    dest.mkdir(parents=True, exist_ok=True)
+    # "any": o mesmo desenho do icon.png.
+    for tam in (192, 512):
+        desenhar(tam, VERDE, 0.30, modo="RGB").save(dest / f"icon-{tam}.png")
+    # "maskable": o Android recorta até um círculo de 80% do lado, então a
+    # pizza encolhe para caber nele com folga.
+    desenhar(512, VERDE, 0.24, modo="RGB").save(dest / "icon-512-maskable.png")
+    # Tela de início do iOS (Safari usa 180 px).
+    desenhar(180, VERDE, 0.30, modo="RGB").save(dest / "apple-touch-icon.png")
 
 
 if __name__ == "__main__":
