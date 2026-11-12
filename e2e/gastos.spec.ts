@@ -4,8 +4,9 @@
 // O usuário é novo a cada execução (e-mail único em example.com). A
 // confirmação usa AdminConfirmSignUp, porque o código vai por e-mail. No fim,
 // mesmo com falha, o usuário é excluído pelo caminho do app (e2e/aws.ts).
-import { expect, type Page, test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
+import { abrir, diagnosticarNaFalha, entrar, preencher } from './app';
 import { confirmarCadastro, excluirUsuario, lerAmbiente, senhaAleatoria } from './aws';
 
 const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -14,56 +15,8 @@ const senha = senhaAleatoria();
 const descricao = `E2E ${id}`;
 const amb = lerAmbiente();
 
-/**
- * Preenche um campo e confere o valor. O site é exportado como HTML estático:
- * até o React assumir a página, o que se digita é descartado na hidratação.
- * Por isso repete até o valor ficar.
- */
-async function preencher(page: Page, rotulo: string, valor: string): Promise<void> {
-  const campo = page.getByLabel(rotulo, { exact: true });
-  await expect(async () => {
-    await campo.fill(valor);
-    await expect(campo).toHaveValue(valor, { timeout: 1_000 });
-  }).toPass();
-}
-
-/**
- * Abre a rota e espera o app ficar estável: o service worker da PWA assumindo
- * a página (na primeira visita) e a rede parada.
- */
-async function abrir(page: Page, rota: string): Promise<void> {
-  await page.goto(rota);
-  await page.waitForFunction(
-    () => !('serviceWorker' in navigator) || navigator.serviceWorker.controller !== null,
-  );
-  await page.waitForLoadState('networkidle');
-}
-
-// Na falha, o log da esteira é tudo o que se vê (o relatório do Playwright não
-// é publicado). Imprime a URL, a árvore de acessibilidade e, para cada botão
-// visível, o que está por cima do centro dele.
 test.afterEach(async ({ page }, info) => {
-  if (info.status === info.expectedStatus) return;
-  console.log(`URL na falha: ${page.url()}`);
-  console.log(`Árvore de acessibilidade:
-${await page.locator('body').ariaSnapshot()}`);
-  const cobertos = await page.evaluate(() =>
-    [...document.querySelectorAll<HTMLElement>('[role="button"], button')]
-      .filter((b) => b.offsetParent !== null)
-      .map((b) => {
-        const r = b.getBoundingClientRect();
-        const topo = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
-        if (!topo || b.contains(topo)) return null;
-        const camada = topo.closest('[class]')?.parentElement;
-        return {
-          botao: b.getAttribute('aria-label') ?? b.innerText.slice(0, 40),
-          porCima: topo.outerHTML.slice(0, 200),
-          camada: camada?.innerText.replace(/\s+/g, ' ').slice(0, 200) ?? '',
-        };
-      })
-      .filter(Boolean),
-  );
-  console.log(`Botões cobertos: ${JSON.stringify(cobertos, null, 1)}`);
+  await diagnosticarNaFalha(page, info);
 });
 
 test.afterAll(async () => {
@@ -83,9 +36,7 @@ test('cadastro, login e ciclo de um gasto até o painel', async ({ page }) => {
   await test.step('confirmação (pelo Cognito) e login', async () => {
     confirmarCadastro(amb, email);
     await page.getByRole('button', { name: 'Voltar para o login' }).click();
-    await preencher(page, 'E-mail', email);
-    await preencher(page, 'Senha', senha);
-    await page.getByRole('button', { name: 'Entrar', exact: true }).click();
+    await entrar(page, email, senha);
     await expect(page.getByRole('tab', { name: 'Painel' })).toBeVisible();
   });
 
