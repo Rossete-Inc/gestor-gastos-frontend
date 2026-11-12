@@ -119,7 +119,11 @@ test('cadastro, login e ciclo de um gasto até o painel', async ({ page }) => {
 
   await test.step('editar', async () => {
     await page.getByRole('tab', { name: 'Gastos' }).click();
-    await page.getByRole('button', { name: new RegExp(`^${descricao},`) }).click();
+    // Nome exato do item da lista de Gastos: o Painel mostra o mesmo gasto em
+    // "últimos lançamentos", com a data no meio ("Alimentação · 12/11").
+    await page
+      .getByRole('button', { name: `${descricao}, Alimentação, R$ 123,45`, exact: true })
+      .click();
     await page.getByLabel('Descrição', { exact: true }).fill(`${descricao} editado`);
     await page.getByRole('button', { name: 'Salvar gasto' }).click();
     await expect(
@@ -128,7 +132,9 @@ test('cadastro, login e ciclo de um gasto até o painel', async ({ page }) => {
   });
 
   await test.step('excluir', async () => {
-    await page.getByRole('button', { name: new RegExp(`^${descricao} editado,`) }).click();
+    await page
+      .getByRole('button', { name: `${descricao} editado, Alimentação, R$ 123,45`, exact: true })
+      .click();
     await page.getByRole('button', { name: 'Excluir gasto' }).click();
     await page.getByRole('button', { name: 'Excluir', exact: true }).click();
     await expect(page.getByRole('button', { name: new RegExp(`^${descricao}`) })).toHaveCount(0);
