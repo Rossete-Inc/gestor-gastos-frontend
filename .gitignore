@@ -42,3 +42,7 @@ yarn-error.*
 
 # testes
 coverage/
+
+# Playwright (e2e/)
+test-results/
+playwright-report/

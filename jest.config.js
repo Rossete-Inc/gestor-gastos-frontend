@@ -38,7 +38,8 @@ module.exports = {
   moduleNameMapper: { '^@/(.*)$': '<rootDir>/src/$1' },
   // O mesmo Babel do preset também para .mjs (rettime, @mswjs/interceptors).
   transform: { ...preset.transform, '\\.mjs$': preset.transform['\\.[jt]sx?$'] },
-  testPathIgnorePatterns: ['/node_modules/', '/dist/'],
+  // e2e/ é do Playwright (npm run e2e), não do Jest.
+  testPathIgnorePatterns: ['/node_modules/', '/dist/', '/e2e/'],
   transformIgnorePatterns: [
     padraoExpo.replace('(?!(', `(?!(${esmDoMsw.join('|')}|`),
     ...outrosPadroes,
