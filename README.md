@@ -101,6 +101,17 @@ As telas usam só os componentes e os `tokens` de `shared/ui`; nenhuma cor ou me
 
 Usuários de teste do ambiente local: os do seed do infra-base (`docs/local.md`). Contas novas recebem o código de confirmação no log do cognito-local.
 
+## Administração (`src/features/admin`)
+
+| Rota        | Tela                                                                                                                               |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `/usuarios` | Lista paginada de usuários (UserRow da referência); tocar numa pessoa abre as ações: bloquear ou reativar, trocar o papel, excluir |
+
+- **Quem vê:** o item "Usuários" do Perfil e a rota `/usuarios` só aparecem para admin, pelo papel do `/me` (`SomenteAdmin`). É só navegação: quem decide é o BFF, que responde 403 a quem não está no grupo `admin` do token.
+- **Papel novo:** vale a partir do próximo login. Quem acabou de virar admin vê o item, mas a lista responde 403 até sair e entrar de novo, e a tela explica isso.
+- **Regras:** a tela não oferece bloquear nem excluir a própria conta, nem ações em contas excluídas ou pendentes. O resto (último admin, transições) vem do users-service, e cada código de erro tem a sua mensagem.
+- **Confirmação:** toda ação pede confirmação; bloquear e excluir com o botão vermelho. Depois de qualquer resposta, a lista e o próprio perfil são recarregados.
+
 ## Testes
 
 ```sh

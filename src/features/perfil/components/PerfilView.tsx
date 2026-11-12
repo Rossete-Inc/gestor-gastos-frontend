@@ -12,11 +12,13 @@ const papeis = { admin: 'Administrador', cliente: 'Cliente' } as const;
 type Props = {
   /** Abre Categorias. Até o painel com abas (fatia 4), o acesso fica aqui. */
   onCategorias: () => void;
+  /** Abre a área de administração; o item só aparece para admin. */
+  onUsuarios: () => void;
 };
 
 // Tela Perfil (spec gestao-usuarios, "Ver perfil"): nome, e-mail, papel e
 // data de criação, com a ação de sair.
-export function PerfilView({ onCategorias }: Props) {
+export function PerfilView({ onCategorias, onUsuarios }: Props) {
   const perfil = usePerfil();
   const sair = useSair();
 
@@ -52,6 +54,10 @@ export function PerfilView({ onCategorias }: Props) {
         </View>
       )}
       <MenuItem label="Categorias" icon="tag" onPress={onCategorias} />
+      {/* Spec gestao-usuarios, "Navegação por papel": cliente não vê a área. */}
+      {perfil.data?.papel === 'admin' && (
+        <MenuItem label="Usuários" icon="users" onPress={onUsuarios} />
+      )}
       <MenuItem label="Sair" icon="log-out" danger onPress={() => sair.mutate()} />
     </Screen>
   );

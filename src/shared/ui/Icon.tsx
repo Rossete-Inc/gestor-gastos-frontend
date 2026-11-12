@@ -9,6 +9,7 @@ const nomes = {
   list: 'list',
   tag: 'tag',
   user: 'user',
+  users: 'users',
   plus: 'plus',
   'chevron-left': 'chevron-left',
   'chevron-right': 'chevron-right',
