@@ -1,6 +1,17 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
-import { Badge, Banner, Button, Header, MenuItem, Screen, Text, TextField } from './index';
+import { variantDoValorCentro } from './PieChart';
+import {
+  Badge,
+  Banner,
+  Button,
+  Header,
+  MenuItem,
+  PieChart,
+  Screen,
+  Text,
+  TextField,
+} from './index';
 
 describe('Button', () => {
   it('chama onPress e expõe papel e rótulo acessíveis', async () => {
@@ -126,5 +137,30 @@ describe('Banner, Badge e MenuItem', () => {
     await render(<MenuItem label="Sair" icon="log-out" onPress={onPress} danger />);
     await fireEvent.press(screen.getByRole('button', { name: 'Sair' }));
     expect(onPress).toHaveBeenCalled();
+  });
+});
+
+describe('PieChart', () => {
+  it('mostra no centro o valor inteiro, com centavos', async () => {
+    await render(
+      <PieChart
+        fatias={[{ chave: 'a', valor: 10_060, cor: '#F97316' }]}
+        rotuloCentro="Total"
+        valorCentro="R$ 100,60"
+        accessibilityLabel="Gráfico por categoria: total de R$ 100,60"
+      />,
+    );
+    // O centro é visual: o leitor de tela lê o gráfico pelo rótulo da imagem.
+    // A biblioteca desenha o centro em mais de uma camada; basta que apareça.
+    const oculto = { includeHiddenElements: true };
+    expect(screen.getAllByText('R$ 100,60', oculto).length).toBeGreaterThan(0); // => "R$ 100,60"
+    expect(screen.queryByText('R$ 101', oculto)).toBeNull();
+  });
+
+  it('diminui a fonte do centro conforme o valor cresce, para caber no furo', () => {
+    expect(variantDoValorCentro('R$ 100,60')).toBe('subtitle');
+    expect(variantDoValorCentro('R$ 1.234,56')).toBe('body');
+    expect(variantDoValorCentro('R$ 123.456,78')).toBe('label');
+    expect(variantDoValorCentro('R$ 1.234.567,89')).toBe('caption');
   });
 });
