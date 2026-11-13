@@ -1,7 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 import { PieChart as GiftedPie } from 'react-native-gifted-charts';
 
-import { Text } from './Text';
+import { Text, type TextVariant } from './Text';
 import { tokens } from './tokens';
 
 // Gráfico de pizza em donut (ADR 0005): react-native-gifted-charts, que
@@ -26,6 +26,20 @@ type Props = {
 
 const RAIO = 100;
 const RAIO_INTERNO = 64;
+/** Largura útil do centro: o diâmetro do furo menos uma folga. */
+const LARGURA_CENTRO = RAIO_INTERNO * 2 - tokens.space.sm;
+
+/**
+ * Tamanho do valor do centro conforme o comprimento, para o valor inteiro, com
+ * centavos, caber no furo: "R$ 100,60" fica grande; "R$ 1.234.567,89",
+ * pequeno.
+ */
+export function variantDoValorCentro(valor: string): TextVariant {
+  if (valor.length <= 9) return 'subtitle';
+  if (valor.length <= 11) return 'body';
+  if (valor.length <= 13) return 'label';
+  return 'caption';
+}
 
 export function PieChart({ fatias, rotuloCentro, valorCentro, accessibilityLabel }: Props) {
   return (
@@ -49,7 +63,11 @@ export function PieChart({ fatias, rotuloCentro, valorCentro, accessibilityLabel
             <Text variant="caption" color="textMuted">
               {rotuloCentro}
             </Text>
-            <Text variant="subtitle" style={styles.valor} numberOfLines={1}>
+            <Text
+              variant={variantDoValorCentro(valorCentro)}
+              style={styles.valor}
+              numberOfLines={1}
+            >
               {valorCentro}
             </Text>
           </View>
@@ -61,6 +79,6 @@ export function PieChart({ fatias, rotuloCentro, valorCentro, accessibilityLabel
 
 const styles = StyleSheet.create({
   container: { alignItems: 'center', paddingVertical: tokens.space.sm },
-  centro: { alignItems: 'center', maxWidth: RAIO_INTERNO * 2 - tokens.space.lg },
+  centro: { alignItems: 'center', maxWidth: LARGURA_CENTRO },
   valor: { fontWeight: tokens.font.weight.bold },
 });

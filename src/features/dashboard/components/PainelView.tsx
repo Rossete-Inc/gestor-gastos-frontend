@@ -26,7 +26,6 @@ import {
   diaMes,
   fatiasDaVisao,
   formatarPercentual,
-  formatarReaisCompacto,
   totalDaVisao,
   type Fatia,
   type TelaDashboard,
@@ -159,7 +158,7 @@ function PorCategoria({ tela }: { tela: TelaDashboard }) {
               cor: corDaFatia(f),
             }))}
             rotuloCentro="Total"
-            valorCentro={formatarReaisCompacto(total)}
+            valorCentro={formatarCentavos(total)}
             accessibilityLabel={`Gráfico por categoria, ${nomeDaVisao.toLowerCase()}: total de ${formatarCentavos(total)}`}
           />
           <View style={styles.legenda}>

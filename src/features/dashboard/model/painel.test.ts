@@ -2,7 +2,6 @@ import {
   diaMes,
   fatiasDaVisao,
   formatarPercentual,
-  formatarReaisCompacto,
   totalDaVisao,
   type TelaDashboard,
 } from './painel';
@@ -38,13 +37,6 @@ describe('model do painel', () => {
     expect(formatarPercentual(1000)).toBe('100%');
     expect(formatarPercentual(3)).toBe('0,3%');
     expect(formatarPercentual(0)).toBe('0%');
-  });
-
-  it('formata o total do centro do gráfico sem centavos', () => {
-    expect(formatarReaisCompacto(351_000)).toBe('R$ 3.510'); // => "R$ 3.510"
-    expect(formatarReaisCompacto(4_590)).toBe('R$ 46');
-    expect(formatarReaisCompacto(0)).toBe('R$ 0');
-    expect(formatarReaisCompacto(100_000_000_00)).toBe('R$ 100.000.000');
   });
 
   it('dá o total e as fatias de cada visão', () => {

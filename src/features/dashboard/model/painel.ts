@@ -35,11 +35,5 @@ export function formatarPercentual(decimos: number): string {
   return decimal === 0 ? `${inteiro}%` : `${inteiro},${decimal}%`;
 }
 
-/** "R$ 3.510" para o centro do gráfico: reais arredondados, sem centavos. */
-export function formatarReaisCompacto(centavos: number): string {
-  const reais = Math.round(centavos / 100);
-  return `R$ ${String(reais).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`;
-}
-
 /** "03/11" a partir de "2026-11-03", como no ExpenseItem da referência. */
 export const diaMes = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
