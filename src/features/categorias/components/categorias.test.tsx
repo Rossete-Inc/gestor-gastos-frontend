@@ -175,6 +175,16 @@ describe('CategoriaForm', () => {
   const preencherNome = async (nome: string) =>
     fireEvent.changeText(screen.getByLabelText('Nome'), nome);
 
+  it('oferece a paleta por família e mostra o tom escolhido', async () => {
+    await renderizar(<CategoriaForm onCriada={jest.fn()} onVoltar={jest.fn()} />);
+
+    expect(screen.getAllByRole('radio', { name: / (claro|médio|escuro)$/ })).toHaveLength(39);
+    expect(screen.getByText('Selecionada: Laranja médio')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('radio', { name: 'Roxo escuro' }));
+    expect(screen.getByRole('radio', { name: 'Roxo escuro' })).toBeChecked();
+    expect(screen.getByText('Selecionada: Roxo escuro')).toBeOnTheScreen();
+  });
+
   it('cria com nome, grupo e cor escolhidos', async () => {
     let corpo: unknown;
     server.use(
@@ -191,7 +201,7 @@ describe('CategoriaForm', () => {
 
     await preencherNome('  Pet  ');
     await fireEvent.press(screen.getByRole('radio', { name: 'Fixo' }));
-    await fireEvent.press(screen.getByRole('radio', { name: 'Cor #3B82F6' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Azul médio' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Criar categoria' }));
 
     await waitFor(() => expect(onCriada).toHaveBeenCalledTimes(1));
