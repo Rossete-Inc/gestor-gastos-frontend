@@ -47,9 +47,11 @@ const somar = ([ano, mes]: [number, number], n: number): [number, number] => {
 
 const rotulo = ([ano, mes]: [number, number]) => `${MESES[mes - 1]} de ${ano}`;
 
-// As abas ficam montadas na web: há um "Próximo mês" em cada aba já visitada.
-// Usa só o da aba à vista.
-async function avancarMeses(page: Page, n: number) {
+// As abas ficam montadas na web: há um "Próximo mês" em cada aba já visitada,
+// e o da aba anterior segue visível durante a troca. Espera o título da aba
+// de destino e usa só o botão à vista.
+async function avancarMeses(page: Page, aba: string, n: number) {
+  await expect(page.getByRole('heading', { name: aba, exact: true })).toBeVisible();
   const proximo = page.locator('[aria-label="Próximo mês"]:visible');
   for (let i = 0; i < n; i++) {
     await expect(proximo).toHaveCount(1);
@@ -114,7 +116,7 @@ test('cartão, compra depois do fechamento e fatura dois meses depois', async ({
 
   await test.step('aparece na fatura e no limite, na aba Cartões', async () => {
     await page.getByRole('tab', { name: 'Cartões' }).click();
-    await avancarMeses(page, 2);
+    await avancarMeses(page, 'Cartões', 2);
     await expect(page.getByRole('heading', { name: rotulo(fatura) })).toBeVisible();
     const cartao = page.getByRole('button', { name: new RegExp(`^${apelido}: fatura de`) });
     await expect(cartao).toContainText('R$ 100,00');
@@ -129,7 +131,7 @@ test('cartão, compra depois do fechamento e fatura dois meses depois', async ({
 
   await test.step('aparece no painel do mês da fatura, com o detalhe da fatia', async () => {
     await page.getByRole('tab', { name: 'Painel' }).click();
-    await avancarMeses(page, 2);
+    await avancarMeses(page, 'Painel', 2);
     await expect(page.getByLabel(`${apelido}: 100%, R$ 100,00`)).toBeVisible();
     await page.getByRole('button', { name: /^Alimentação: 100%/ }).click();
     await expect(page.getByText('Alimentação · Cartão · R$ 100,00 · 100%')).toBeVisible();
