@@ -34,6 +34,23 @@ export async function entrar(page: Page, email: string, senha: string): Promise<
 }
 
 /**
+ * Troca de aba e espera o título dela. Na web as abas visitadas ficam
+ * montadas, e a que sai segue visível durante a troca, com os mesmos botões
+ * (Novo gasto, Próximo mês): sem esperar, o teste pega o botão da aba errada.
+ */
+export async function abrirAba(page: Page, nome: string): Promise<void> {
+  await page.getByRole('tab', { name: nome }).click();
+  await expect(page.getByRole('heading', { name: nome, exact: true })).toBeVisible();
+}
+
+/** Toca no único botão visível com esse rótulo (ver abrirAba). */
+export async function tocarVisivel(page: Page, rotulo: string): Promise<void> {
+  const botao = page.locator(`[aria-label="${rotulo}"]:visible`);
+  await expect(botao).toHaveCount(1);
+  await botao.click();
+}
+
+/**
  * Na falha, o log da esteira é tudo o que se vê (o relatório do Playwright não
  * é publicado). Imprime a URL, a árvore de acessibilidade e, para cada botão
  * visível, o que está por cima do centro dele. Use num test.afterEach.

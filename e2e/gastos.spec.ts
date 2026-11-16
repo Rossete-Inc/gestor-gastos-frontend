@@ -6,7 +6,7 @@
 // mesmo com falha, o usuário é excluído pelo caminho do app (e2e/aws.ts).
 import { expect, test } from '@playwright/test';
 
-import { abrir, diagnosticarNaFalha, entrar, preencher } from './app';
+import { abrir, abrirAba, diagnosticarNaFalha, entrar, preencher, tocarVisivel } from './app';
 import { confirmarCadastro, excluirUsuario, lerAmbiente, senhaAleatoria } from './aws';
 
 const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -41,11 +41,9 @@ test('cadastro, login e ciclo de um gasto até o painel', async ({ page }) => {
   });
 
   await test.step('lançar gasto', async () => {
-    await page.getByRole('tab', { name: 'Gastos' }).click();
-    // A aba Painel, fora de foco, tem o mesmo FAB no mesmo lugar: precisa
-    // estar escondida, senão ela fica com o clique (bug achado na esteira).
-    await expect(page.locator('[aria-label="Novo gasto"]:visible')).toHaveCount(1);
-    await page.getByRole('button', { name: 'Novo gasto' }).click();
+    await abrirAba(page, 'Gastos');
+    // A aba Painel, fora de foco, tem o mesmo FAB no mesmo lugar.
+    await tocarVisivel(page, 'Novo gasto');
     await page.getByLabel('Valor', { exact: true }).pressSequentially('12345');
     await expect(page.getByLabel('Valor', { exact: true })).toHaveValue('R$ 123,45');
     await page.getByRole('button', { name: /^Categoria:/ }).click();
@@ -58,7 +56,7 @@ test('cadastro, login e ciclo de um gasto até o painel', async ({ page }) => {
   });
 
   await test.step('painel e pizza', async () => {
-    await page.getByRole('tab', { name: 'Painel' }).click();
+    await abrirAba(page, 'Painel');
     await expect(page.getByText('Total do mês')).toBeVisible();
     // Único gasto do mês: 100% em Internet (fixo, sem cartão), na legenda da pizza.
     await expect(page.getByLabel(/^Internet: 100/)).toBeVisible();
@@ -69,7 +67,7 @@ test('cadastro, login e ciclo de um gasto até o painel', async ({ page }) => {
   });
 
   await test.step('editar', async () => {
-    await page.getByRole('tab', { name: 'Gastos' }).click();
+    await abrirAba(page, 'Gastos');
     // Nome exato do item da lista de Gastos: o Painel mostra o mesmo gasto em
     // "últimos lançamentos", com a data no meio ("Internet · 12/11").
     await page
