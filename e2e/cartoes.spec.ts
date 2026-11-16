@@ -5,7 +5,7 @@
 // A pessoa de teste nasce já confirmada (AdminCreateUser, sem e-mail) e é
 // excluída no fim pelo caminho do app (e2e/aws.ts), o que apaga o cartão e o
 // gasto junto.
-import { expect, test } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
 
 import { abrir, diagnosticarNaFalha, entrar, preencher } from './app';
 import { type Conta, contaDeCliente, excluirUsuario, lerAmbiente } from './aws';
@@ -46,6 +46,16 @@ const somar = ([ano, mes]: [number, number], n: number): [number, number] => {
 };
 
 const rotulo = ([ano, mes]: [number, number]) => `${MESES[mes - 1]} de ${ano}`;
+
+// As abas ficam montadas na web: há um "Próximo mês" em cada aba já visitada.
+// Usa só o da aba à vista.
+async function avancarMeses(page: Page, n: number) {
+  const proximo = page.locator('[aria-label="Próximo mês"]:visible');
+  for (let i = 0; i < n; i++) {
+    await expect(proximo).toHaveCount(1);
+    await proximo.click();
+  }
+}
 
 let pessoa: Conta;
 
@@ -104,8 +114,7 @@ test('cartão, compra depois do fechamento e fatura dois meses depois', async ({
 
   await test.step('aparece na fatura e no limite, na aba Cartões', async () => {
     await page.getByRole('tab', { name: 'Cartões' }).click();
-    await page.getByRole('button', { name: 'Próximo mês' }).click();
-    await page.getByRole('button', { name: 'Próximo mês' }).click();
+    await avancarMeses(page, 2);
     await expect(page.getByRole('heading', { name: rotulo(fatura) })).toBeVisible();
     const cartao = page.getByRole('button', { name: new RegExp(`^${apelido}: fatura de`) });
     await expect(cartao).toContainText('R$ 100,00');
@@ -120,8 +129,7 @@ test('cartão, compra depois do fechamento e fatura dois meses depois', async ({
 
   await test.step('aparece no painel do mês da fatura, com o detalhe da fatia', async () => {
     await page.getByRole('tab', { name: 'Painel' }).click();
-    await page.getByRole('button', { name: 'Próximo mês' }).click();
-    await page.getByRole('button', { name: 'Próximo mês' }).click();
+    await avancarMeses(page, 2);
     await expect(page.getByLabel(`${apelido}: 100%, R$ 100,00`)).toBeVisible();
     await page.getByRole('button', { name: /^Alimentação: 100%/ }).click();
     await expect(page.getByText('Alimentação · Cartão · R$ 100,00 · 100%')).toBeVisible();
