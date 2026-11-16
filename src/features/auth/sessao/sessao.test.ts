@@ -151,3 +151,70 @@ describe('ao abrir o app (nativo)', () => {
     expect(ouvinte).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('alterar senha', () => {
+  async function logado() {
+    server.use(cognito({ InitiateAuth: () => tokensCognito('access-1', 'refresh-1') }));
+    await sessao.entrar('ana@x.com', 'Antiga123');
+  }
+
+  it('troca a senha, entra de novo com a nova e continua logado', async () => {
+    await logado();
+    const ops: string[] = [];
+    let login: Record<string, unknown> = {};
+    server.use(
+      cognito({
+        GetUser: () => (ops.push('GetUser'), Response.json({ Username: 'uuid-ana' })),
+        ChangePassword: (c) => (
+          ops.push('ChangePassword'),
+          expect(c).toMatchObject({ AccessToken: 'access-1' }),
+          Response.json({})
+        ),
+        InitiateAuth: (c) => (
+          (login = c),
+          ops.push('InitiateAuth'),
+          tokensCognito('access-2', 'refresh-2')
+        ),
+      }),
+    );
+    const aviso = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await sessao.alterarSenha('Antiga123', 'Nova1234');
+    aviso.mockRestore();
+
+    expect(ops).toEqual(['GetUser', 'ChangePassword', 'InitiateAuth']);
+    expect(login).toMatchObject({ AuthParameters: { USERNAME: 'uuid-ana', PASSWORD: 'Nova1234' } });
+    expect(sessao.obter().tokens?.accessToken).toBe('access-2');
+    await expect(SecureStore.getItemAsync(CHAVE)).resolves.toBe('refresh-2');
+  });
+
+  it('senha atual errada (InvalidPasswordException no cognito-local) não troca e mantém a sessão', async () => {
+    await logado();
+    server.use(
+      cognito({
+        GetUser: () => Response.json({ Username: 'uuid-ana' }),
+        ChangePassword: () => erroCognito('InvalidPasswordException'),
+      }),
+    );
+    await expect(sessao.alterarSenha('Errada123', 'Nova1234')).rejects.toMatchObject({
+      codigo: 'senha_atual_incorreta',
+    });
+    expect(sessao.obter().tokens?.accessToken).toBe('access-1');
+  });
+
+  it('se o novo login falha, encerra a sessão e avisa que a senha mudou', async () => {
+    await logado();
+    server.use(
+      cognito({
+        GetUser: () => Response.json({ Username: 'uuid-ana' }),
+        ChangePassword: () => Response.json({}),
+        InitiateAuth: () => erroCognito('NotAuthorizedException'),
+      }),
+    );
+    const aviso = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const erro = await sessao.alterarSenha('Antiga123', 'Nova1234').catch((e: unknown) => e);
+    aviso.mockRestore();
+    expect(erro).toBeInstanceOf(ErroAuth);
+    expect(erro).toMatchObject({ codigo: 'senha_alterada_relogin' });
+    expect(sessao.obter().status).toBe('anonimo');
+  });
+});

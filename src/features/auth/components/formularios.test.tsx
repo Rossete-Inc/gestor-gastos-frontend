@@ -166,7 +166,11 @@ describe('ConfirmarForm', () => {
 });
 
 describe('LoginForm', () => {
-  const props = () => ({ onNaoConfirmado: jest.fn(), onCriarConta: jest.fn() });
+  const props = () => ({
+    onNaoConfirmado: jest.fn(),
+    onCriarConta: jest.fn(),
+    onEsqueciSenha: jest.fn(),
+  });
 
   async function entrar(email: string, senha: string) {
     await preencher('E-mail', email);
@@ -236,5 +240,13 @@ describe('LoginForm', () => {
     await renderizar(<LoginForm {...p} />);
     await tocar('Criar conta');
     expect(p.onCriarConta).toHaveBeenCalled();
+  });
+
+  it('"Esqueci minha senha" leva à recuperação com o e-mail digitado', async () => {
+    const p = props();
+    await renderizar(<LoginForm {...p} />);
+    await preencher('E-mail', ' ana@x.com ');
+    await tocar('Esqueci minha senha');
+    expect(p.onEsqueciSenha).toHaveBeenCalledWith('ana@x.com');
   });
 });

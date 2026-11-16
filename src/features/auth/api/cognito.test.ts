@@ -62,3 +62,69 @@ it('erro do Cognito em operação simples', async () => {
     tipo: 'CodeMismatchException',
   });
 });
+
+describe('senha', () => {
+  /** Captura operação e corpo de cada chamada ao Cognito. */
+  function capturar(resposta: object = {}) {
+    const chamadas: { op: string; corpo: Record<string, unknown> }[] = [];
+    server.use(
+      http.post(COGNITO, async ({ request }) => {
+        chamadas.push({
+          op: request.headers.get('X-Amz-Target')?.split('.').pop() ?? '',
+          corpo: (await request.json()) as Record<string, unknown>,
+        });
+        return HttpResponse.json(resposta);
+      }),
+    );
+    return chamadas;
+  }
+
+  it('alterarSenha usa ChangePassword com o access token e sem ClientId', async () => {
+    const chamadas = capturar();
+    await cognito.alterarSenha('acc', 'Antiga123', 'Nova1234');
+    expect(chamadas).toEqual([
+      {
+        op: 'ChangePassword',
+        corpo: { AccessToken: 'acc', PreviousPassword: 'Antiga123', ProposedPassword: 'Nova1234' },
+      },
+    ]);
+  });
+
+  it('usuario lê o Username do GetUser', async () => {
+    const chamadas = capturar({ Username: 'uuid-ana', UserAttributes: [] });
+    await expect(cognito.usuario('acc')).resolves.toBe('uuid-ana');
+    expect(chamadas[0]).toEqual({ op: 'GetUser', corpo: { AccessToken: 'acc' } });
+  });
+
+  it('esqueciSenha usa ForgotPassword com o ClientId', async () => {
+    const chamadas = capturar({ CodeDeliveryDetails: {} });
+    await cognito.esqueciSenha('ana@x.com');
+    expect(chamadas[0]).toEqual({
+      op: 'ForgotPassword',
+      corpo: { ClientId: 'client-teste', Username: 'ana@x.com' },
+    });
+  });
+
+  it('redefinirSenha usa ConfirmForgotPassword', async () => {
+    const chamadas = capturar();
+    await cognito.redefinirSenha('ana@x.com', '123456', 'Nova1234');
+    expect(chamadas[0]).toEqual({
+      op: 'ConfirmForgotPassword',
+      corpo: {
+        ClientId: 'client-teste',
+        Username: 'ana@x.com',
+        ConfirmationCode: '123456',
+        Password: 'Nova1234',
+      },
+    });
+  });
+
+  it('sairDeTodos não chama o cognito-local, que não tem GlobalSignOut', async () => {
+    const aviso = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const chamadas = capturar();
+    await cognito.sairDeTodos('acc');
+    expect(chamadas).toHaveLength(0);
+    expect(aviso).toHaveBeenCalled();
+    aviso.mockRestore();
+  });
+});

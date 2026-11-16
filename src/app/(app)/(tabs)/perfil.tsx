@@ -7,6 +7,7 @@ export default function Perfil() {
     <PerfilView
       onCategorias={() => router.push('/categorias')}
       onUsuarios={() => router.push('/usuarios')}
+      onAlterarSenha={() => router.push('/alterar-senha')}
     />
   );
 }

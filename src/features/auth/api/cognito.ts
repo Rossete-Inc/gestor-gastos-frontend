@@ -13,6 +13,10 @@ import { iniciarSrp, responderDesafio, type DesafioSrp } from './srp';
 // fluxo de senha que o app client aceita; a senha não trafega. No ambiente
 // local, USER_PASSWORD_AUTH, porque o cognito-local não implementa SRP
 // (design.md). A escolha fica atrás da mesma função `entrar`.
+//
+// Senha (change troca-recuperacao-senha): ChangePassword, GetUser e
+// GlobalSignOut usam o access token e não aceitam ClientId; ForgotPassword e
+// ConfirmForgotPassword usam o ClientId, como o cadastro.
 
 export type Tokens = {
   accessToken: string;
@@ -25,7 +29,11 @@ function url(): string {
   return env.cognito.endpoint ?? `https://cognito-idp.${env.cognito.region}.amazonaws.com/`;
 }
 
-async function chamar<T>(operacao: string, corpo: object): Promise<T> {
+async function chamar<T>(
+  operacao: string,
+  corpo: object,
+  { comClientId = true }: { comClientId?: boolean } = {},
+): Promise<T> {
   let res: Response;
   try {
     res = await fetch(url(), {
@@ -34,7 +42,7 @@ async function chamar<T>(operacao: string, corpo: object): Promise<T> {
         'Content-Type': 'application/x-amz-json-1.1',
         'X-Amz-Target': `AWSCognitoIdentityProviderService.${operacao}`,
       },
-      body: JSON.stringify({ ClientId: env.cognito.clientId, ...corpo }),
+      body: JSON.stringify(comClientId ? { ClientId: env.cognito.clientId, ...corpo } : corpo),
     });
   } catch {
     throw new CognitoError('NetworkError', 'sem conexão');
@@ -96,6 +104,46 @@ export const cognito = {
       }),
       refreshToken,
     ),
+
+  /** Troca a senha do usuário logado. Não encerra sessões (ver sairDeTodos). */
+  alterarSenha: (accessToken: string, senhaAtual: string, novaSenha: string) =>
+    chamar<object>(
+      'ChangePassword',
+      { AccessToken: accessToken, PreviousPassword: senhaAtual, ProposedPassword: novaSenha },
+      { comClientId: false },
+    ),
+
+  /** Nome de usuário do dono do token, usado para entrar de novo após a troca. */
+  usuario: async (accessToken: string): Promise<string> =>
+    (
+      await chamar<{ Username: string }>(
+        'GetUser',
+        { AccessToken: accessToken },
+        { comClientId: false },
+      )
+    ).Username,
+
+  /**
+   * Revoga todos os refresh tokens do usuário (todos os dispositivos). O
+   * cognito-local não implementa GlobalSignOut: localmente vira um aviso.
+   */
+  sairDeTodos: async (accessToken: string): Promise<void> => {
+    if (env.appEnv === 'local') {
+      console.warn('cognito-local não suporta GlobalSignOut: outras sessões continuam abertas.');
+      return;
+    }
+    await chamar<object>('GlobalSignOut', { AccessToken: accessToken }, { comClientId: false });
+  },
+
+  /** Envia o código de recuperação para o e-mail da conta, se ela existir. */
+  esqueciSenha: (email: string) => chamar<object>('ForgotPassword', { Username: email }),
+
+  redefinirSenha: (email: string, codigo: string, novaSenha: string) =>
+    chamar<object>('ConfirmForgotPassword', {
+      Username: email,
+      ConfirmationCode: codigo,
+      Password: novaSenha,
+    }),
 };
 
 async function entrarComSenha(email: string, senha: string): Promise<Tokens> {

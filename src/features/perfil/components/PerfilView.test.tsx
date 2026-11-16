@@ -14,6 +14,12 @@ const server = usarServidor();
 const mockSair = jest.fn();
 const mockCategorias = jest.fn();
 const mockUsuarios = jest.fn();
+const mockAlterarSenha = jest.fn();
+const acoes = {
+  onCategorias: mockCategorias,
+  onUsuarios: mockUsuarios,
+  onAlterarSenha: mockAlterarSenha,
+};
 jest.mock('@/features/auth', () => ({ useSair: () => ({ mutate: mockSair }) }));
 
 beforeEach(() => {
@@ -29,7 +35,7 @@ afterEach(() => configurarAutenticacao(null));
 
 it('mostra nome, e-mail, papel e data de criação (spec, "Ver perfil")', async () => {
   server.use(meQueAceita('access-1'));
-  await renderizar(<PerfilView onCategorias={mockCategorias} onUsuarios={mockUsuarios} />);
+  await renderizar(<PerfilView {...acoes} />);
 
   expect(await screen.findByText('Ana Souza')).toBeOnTheScreen();
   expect(screen.getByText('ana@x.com')).toBeOnTheScreen();
@@ -39,7 +45,7 @@ it('mostra nome, e-mail, papel e data de criação (spec, "Ver perfil")', async 
 
 it('mostra o papel de administrador e a área de usuários', async () => {
   server.use(meQueAceita('access-1', { ...perfilAna, papel: 'admin' }));
-  await renderizar(<PerfilView onCategorias={mockCategorias} onUsuarios={mockUsuarios} />);
+  await renderizar(<PerfilView {...acoes} />);
   expect(await screen.findByText('Administrador')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: 'Usuários' }));
   expect(mockUsuarios).toHaveBeenCalled();
@@ -47,14 +53,14 @@ it('mostra o papel de administrador e a área de usuários', async () => {
 
 it('não mostra a área de usuários para cliente (spec, "Navegação por papel")', async () => {
   server.use(meQueAceita('access-1'));
-  await renderizar(<PerfilView onCategorias={mockCategorias} onUsuarios={mockUsuarios} />);
+  await renderizar(<PerfilView {...acoes} />);
   expect(await screen.findByText('Cliente')).toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: 'Usuários' })).toBeNull();
 });
 
 it('mostra o carregamento enquanto busca', async () => {
   server.use(meQueAceita('access-1'));
-  await renderizar(<PerfilView onCategorias={mockCategorias} onUsuarios={mockUsuarios} />);
+  await renderizar(<PerfilView {...acoes} />);
   expect(screen.getByRole('progressbar', { name: 'Carregando perfil…' })).toBeOnTheScreen();
   expect(await screen.findByText('Ana Souza')).toBeOnTheScreen();
 });
@@ -78,7 +84,7 @@ it('erro do BFF aparece com a mensagem e permite tentar de novo', async () => {
         : HttpResponse.json(perfilAna);
     }),
   );
-  await renderizar(<PerfilView onCategorias={mockCategorias} onUsuarios={mockUsuarios} />);
+  await renderizar(<PerfilView {...acoes} />);
   expect(await screen.findByRole('alert')).toHaveTextContent(/Erro interno\. Tente novamente\./);
 
   await fireEvent.press(screen.getByRole('button', { name: 'Tentar de novo' }));
@@ -87,13 +93,13 @@ it('erro do BFF aparece com a mensagem e permite tentar de novo', async () => {
 
 it('resposta fora do contrato é tratada como erro', async () => {
   server.use(http.get(`${BFF}/me`, () => HttpResponse.json({ id: 'u-1' })));
-  await renderizar(<PerfilView onCategorias={mockCategorias} onUsuarios={mockUsuarios} />);
+  await renderizar(<PerfilView {...acoes} />);
   expect(await screen.findByRole('alert')).toHaveTextContent(/Não foi possível carregar o perfil/);
 });
 
 it('"Sair" aciona o logout da feature auth (spec, "Usuário sai do app")', async () => {
   server.use(meQueAceita('access-1'));
-  await renderizar(<PerfilView onCategorias={mockCategorias} onUsuarios={mockUsuarios} />);
+  await renderizar(<PerfilView {...acoes} />);
   await screen.findByText('Ana Souza');
   await fireEvent.press(screen.getByRole('button', { name: 'Sair' }));
   expect(mockSair).toHaveBeenCalledTimes(1);
@@ -101,8 +107,16 @@ it('"Sair" aciona o logout da feature auth (spec, "Usuário sai do app")', async
 
 it('"Categorias" abre a tela de categorias', async () => {
   server.use(meQueAceita('access-1'));
-  await renderizar(<PerfilView onCategorias={mockCategorias} onUsuarios={mockUsuarios} />);
+  await renderizar(<PerfilView {...acoes} />);
   await screen.findByText('Ana Souza');
   await fireEvent.press(screen.getByRole('button', { name: 'Categorias' }));
   expect(mockCategorias).toHaveBeenCalledTimes(1);
+});
+
+it('"Alterar senha" abre a troca de senha (spec autenticacao, "Acesso pelo perfil")', async () => {
+  server.use(meQueAceita('access-1'));
+  await renderizar(<PerfilView {...acoes} />);
+  await screen.findByText('Ana Souza');
+  await fireEvent.press(screen.getByRole('button', { name: 'Alterar senha' }));
+  expect(mockAlterarSenha).toHaveBeenCalled();
 });

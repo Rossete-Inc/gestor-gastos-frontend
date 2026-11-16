@@ -13,13 +13,22 @@ type Props = {
   /** Conta pendente de confirmação: a tela leva para a confirmação. */
   onNaoConfirmado: (email: string) => void;
   onCriarConta: () => void;
+  /** Abre a recuperação de senha com o e-mail já digitado. */
+  onEsqueciSenha: (email: string) => void;
 };
 
-export function LoginForm({ emailInicial = '', aviso, onNaoConfirmado, onCriarConta }: Props) {
+export function LoginForm({
+  emailInicial = '',
+  aviso,
+  onNaoConfirmado,
+  onCriarConta,
+  onEsqueciSenha,
+}: Props) {
   const entrar = useEntrar();
   const {
     control,
     handleSubmit,
+    getValues,
     formState: { errors },
   } = useForm<LoginInput>({
     resolver: zodResolver(LoginSchema),
@@ -76,6 +85,11 @@ export function LoginForm({ emailInicial = '', aviso, onNaoConfirmado, onCriarCo
             onSubmitEditing={() => enviar()}
           />
         )}
+      />
+      <Button
+        label="Esqueci minha senha"
+        variant="ghost"
+        onPress={() => onEsqueciSenha(getValues('email').trim())}
       />
       <Button label="Entrar" onPress={enviar} loading={entrar.isPending} />
       <Button label="Criar conta" variant="ghost" onPress={onCriarConta} />
