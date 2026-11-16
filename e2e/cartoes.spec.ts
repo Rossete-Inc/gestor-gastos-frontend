@@ -76,6 +76,9 @@ test('cartão, compra depois do fechamento e fatura dois meses depois', async ({
     await preencher(page, 'Apelido', apelido);
     await page.getByRole('button', { name: 'Dia de fechamento: Escolha o dia' }).click();
     await page.getByRole('radio', { name: 'Dia 25', exact: true }).click();
+    // O Modal do Select fecha com fade: espera a lista sumir antes de abrir a
+    // do vencimento, senão "Dia 5" aparece nas duas.
+    await expect(page.getByRole('radio', { name: 'Dia 25', exact: true })).toHaveCount(0);
     await page.getByRole('button', { name: 'Dia de vencimento: Escolha o dia' }).click();
     await page.getByRole('radio', { name: 'Dia 5', exact: true }).click();
     await page.getByLabel('Limite', { exact: true }).pressSequentially('500000');
