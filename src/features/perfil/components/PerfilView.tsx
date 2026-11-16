@@ -14,11 +14,13 @@ type Props = {
   onCategorias: () => void;
   /** Abre a área de administração; o item só aparece para admin. */
   onUsuarios: () => void;
+  /** Abre a troca de senha (spec autenticacao, "Acesso pelo perfil"). */
+  onAlterarSenha: () => void;
 };
 
 // Tela Perfil (spec gestao-usuarios, "Ver perfil"): nome, e-mail, papel e
 // data de criação, com a ação de sair.
-export function PerfilView({ onCategorias, onUsuarios }: Props) {
+export function PerfilView({ onCategorias, onUsuarios, onAlterarSenha }: Props) {
   const perfil = usePerfil();
   const sair = useSair();
 
@@ -58,6 +60,7 @@ export function PerfilView({ onCategorias, onUsuarios }: Props) {
       {perfil.data?.papel === 'admin' && (
         <MenuItem label="Usuários" icon="users" onPress={onUsuarios} />
       )}
+      <MenuItem label="Alterar senha" icon="lock" onPress={onAlterarSenha} />
       <MenuItem label="Sair" icon="log-out" danger onPress={() => sair.mutate()} />
     </Screen>
   );

@@ -13,6 +13,8 @@ export type CodigoErroAuth =
   | 'credenciais_invalidas'
   | 'conta_nao_confirmada'
   | 'conta_bloqueada'
+  | 'senha_atual_incorreta'
+  | 'senha_alterada_relogin'
   | 'muitas_tentativas'
   | 'sem_conexao'
   | 'erro_desconhecido';
@@ -39,7 +41,14 @@ export class CognitoError extends Error {
   }
 }
 
-export type Operacao = 'cadastro' | 'confirmacao' | 'reenvio' | 'login';
+export type Operacao =
+  | 'cadastro'
+  | 'confirmacao'
+  | 'reenvio'
+  | 'login'
+  | 'trocaSenha'
+  | 'esqueciSenha'
+  | 'redefinirSenha';
 
 const comuns: Record<string, [CodigoErroAuth, string]> = {
   LimitExceededException: [
@@ -86,6 +95,23 @@ const porOperacao: Record<Operacao, Record<string, [CodigoErroAuth, string]>> = 
     UserNotFoundException: credenciaisInvalidas,
     InvalidPasswordException: credenciaisInvalidas,
     UserNotConfirmedException: ['conta_nao_confirmada', 'Confirme seu e-mail para entrar.'],
+  },
+  trocaSenha: {
+    // O cognito-local devolve InvalidPasswordException para a senha atual
+    // errada; quem chama converte esse caso antes (sessao.alterarSenha).
+    NotAuthorizedException: ['senha_atual_incorreta', 'A senha atual não confere.'],
+    InvalidPasswordException: ['senha_fraca', 'A nova senha não atende à política de senha.'],
+    InvalidParameterException: ['dados_invalidos', 'Confira os dados informados.'],
+  },
+  esqueciSenha: {},
+  redefinirSenha: {
+    CodeMismatchException: [
+      'codigo_invalido',
+      'Código incorreto. Confira o código ou peça um novo.',
+    ],
+    ExpiredCodeException: ['codigo_expirado', 'Código expirado. Peça um novo código.'],
+    InvalidPasswordException: ['senha_fraca', 'A nova senha não atende à política de senha.'],
+    InvalidParameterException: ['dados_invalidos', 'Confira os dados informados.'],
   },
 };
 

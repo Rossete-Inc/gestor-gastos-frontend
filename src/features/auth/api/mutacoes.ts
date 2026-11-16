@@ -1,7 +1,14 @@
 import { useMutation } from '@tanstack/react-query';
 
-import { erroAuth, type ErroAuth } from '../model/erros';
-import type { CadastroInput, ConfirmacaoInput, LoginInput } from '../model/formularios';
+import { CognitoError, erroAuth, type ErroAuth } from '../model/erros';
+import type {
+  CadastroInput,
+  ConfirmacaoInput,
+  EsqueciSenhaInput,
+  LoginInput,
+  RedefinirSenhaInput,
+  TrocaSenhaInput,
+} from '../model/formularios';
 import { sessao } from '../sessao/sessao';
 import { cognito } from './cognito';
 
@@ -51,4 +58,58 @@ export function useReenviarCodigo(email: string) {
 
 export function useSair() {
   return useMutation<void, Error, void>({ mutationFn: () => sessao.sair() });
+}
+
+export function useAlterarSenha() {
+  return useMutation<void, ErroAuth, TrocaSenhaInput>({
+    mutationFn: ({ senhaAtual, novaSenha }) => sessao.alterarSenha(senhaAtual, novaSenha),
+  });
+}
+
+// Respostas que revelariam se o e-mail tem conta (ou se ela está confirmada).
+// A tela segue igual nesses casos (spec, "E-mail sem conta").
+const respostasNeutras = new Set([
+  'UserNotFoundException',
+  'InvalidParameterException',
+  'NotAuthorizedException',
+]);
+
+export function useEsqueciSenha() {
+  return useMutation<void, ErroAuth, EsqueciSenhaInput>({
+    mutationFn: async ({ email }) => {
+      try {
+        await cognito.esqueciSenha(email);
+      } catch (e) {
+        if (e instanceof CognitoError && respostasNeutras.has(e.tipo)) return;
+        throw erroAuth('esqueciSenha', e);
+      }
+    },
+  });
+}
+
+/**
+ * Encerra as sessões abertas antes da recuperação: entra com a nova senha só
+ * para obter um access token e chama o GlobalSignOut. Silencioso: uma falha
+ * aqui (por exemplo, conta bloqueada) não desfaz a redefinição.
+ */
+async function encerrarSessoesAntigas(email: string, novaSenha: string) {
+  try {
+    const { accessToken } = await cognito.entrar(email, novaSenha);
+    await cognito.sairDeTodos(accessToken);
+  } catch {
+    console.warn('Não foi possível encerrar as sessões anteriores após redefinir a senha.');
+  }
+}
+
+export function useRedefinirSenha(email: string) {
+  return useMutation<void, ErroAuth, RedefinirSenhaInput>({
+    mutationFn: async ({ codigo, novaSenha }) => {
+      try {
+        await cognito.redefinirSenha(email, codigo, novaSenha);
+      } catch (e) {
+        throw erroAuth('redefinirSenha', e);
+      }
+      await encerrarSessoesAntigas(email, novaSenha);
+    },
+  });
 }

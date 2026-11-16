@@ -1,8 +1,9 @@
 import { configurarAutenticacao, queryClient } from '@/shared/api';
+import { env } from '@/shared/config';
 import { secureStorage } from '@/shared/platform';
 
 import { cognito, type Tokens } from '../api/cognito';
-import { erroAuth } from '../model/erros';
+import { CognitoError, ErroAuth, erroAuth } from '../model/erros';
 
 // Estado da sessão: é estado de cliente (não vem do BFF), então fica fora do
 // TanStack Query. Um store mínimo com assinantes, lido por useSyncExternalStore
@@ -77,6 +78,44 @@ export const sessao = {
       return true;
     } catch {
       return false;
+    }
+  },
+
+  /**
+   * Troca a senha e mantém este dispositivo logado (spec, "Alteração de
+   * senha"): ChangePassword → GlobalSignOut (derruba os outros dispositivos e
+   * também este) → login com a nova senha. Lança ErroAuth; se a senha mudou
+   * mas o novo login falhou, encerra a sessão local e lança
+   * `senha_alterada_relogin`.
+   */
+  async alterarSenha(senhaAtual: string, novaSenha: string): Promise<void> {
+    const token = estado.tokens?.accessToken;
+    if (!token) throw new ErroAuth('erro_desconhecido', 'Sua sessão expirou. Entre de novo.');
+    let usuario: string;
+    try {
+      usuario = await cognito.usuario(token);
+      await cognito.alterarSenha(token, senhaAtual, novaSenha);
+    } catch (e) {
+      // O cognito-local usa InvalidPasswordException para a senha atual errada
+      // e não aplica a política de senha, então ali o tipo só tem esse sentido.
+      const senhaAtualErrada =
+        env.appEnv === 'local' &&
+        e instanceof CognitoError &&
+        e.tipo === 'InvalidPasswordException';
+      throw erroAuth(
+        'trocaSenha',
+        senhaAtualErrada ? new CognitoError('NotAuthorizedException', '') : e,
+      );
+    }
+    try {
+      await cognito.sairDeTodos(token);
+      await autenticar(await cognito.entrar(usuario, novaSenha));
+    } catch {
+      await sessao.sair();
+      throw new ErroAuth(
+        'senha_alterada_relogin',
+        'Sua senha foi alterada. Entre de novo com a nova senha.',
+      );
     }
   },
 
