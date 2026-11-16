@@ -34,7 +34,8 @@ test.beforeAll(async () => {
   pessoa = await contaDeCliente(amb, email, nome);
   const categoria = await api<{ id: string }>(amb, pessoa.token, 'POST', '/categorias', {
     nome: `E2E ${id}`.slice(0, 40),
-    grupo: 'CARTAO',
+    // FIXO: gasto de categoria do grupo CARTAO exige cartão (cartoes-credito).
+    grupo: 'FIXO',
     cor: '#E4572E',
   });
   await api(amb, pessoa.token, 'POST', '/gastos', {

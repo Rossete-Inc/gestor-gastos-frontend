@@ -1,9 +1,18 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import type { ApiError } from '@/shared/api';
-import { Banner, Button, Screen, SegmentedControl, Text, TextField, tokens } from '@/shared/ui';
+import {
+  Banner,
+  Button,
+  ColorPicker,
+  Screen,
+  SegmentedControl,
+  Text,
+  TextField,
+  tokens,
+} from '@/shared/ui';
 
 import { useCriarCategoria } from '../api/queries';
 import {
@@ -11,9 +20,6 @@ import {
   CategoriaFormSchema,
   GRUPOS,
   MAX_NOME,
-  PALETA,
-  TONS,
-  nomeDaCor,
   type CategoriaFormInput,
   type Grupo,
 } from '../model/categoria';
@@ -105,44 +111,12 @@ export function CategoriaForm({ onCriada, onVoltar, grupoInicial = 'CARTAO' }: P
         control={control}
         name="cor"
         render={({ field }) => (
-          <View style={styles.campo}>
-            <Text variant="label">Cor</Text>
-            <Text variant="caption" color="textMuted">
-              Selecionada: {nomeDaCor(field.value)}
-            </Text>
-            {/* Uma linha por família, do tom claro ao escuro. */}
-            <View accessibilityRole="radiogroup" accessibilityLabel="Cor" style={styles.paleta}>
-              {PALETA.map((familia) => (
-                <View key={familia.familia} style={styles.familia}>
-                  <Text variant="label" color="textMuted" style={styles.nomeFamilia}>
-                    {familia.familia}
-                  </Text>
-                  {TONS.map((tom) => {
-                    const cor = familia[tom.valor];
-                    const marcada = field.value === cor;
-                    return (
-                      <Pressable
-                        key={cor}
-                        accessibilityRole="radio"
-                        accessibilityLabel={`${familia.familia} ${tom.label}`}
-                        accessibilityState={{ checked: marcada }}
-                        onPress={() => field.onChange(cor)}
-                        style={[styles.amostraAlvo, marcada && styles.marcada]}
-                      >
-                        {/* A cor é dado da categoria, não token de UI. */}
-                        <View style={[styles.amostra, { backgroundColor: cor }]} />
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              ))}
-            </View>
-            {errors.cor?.message && (
-              <Text variant="caption" color="danger" accessibilityRole="alert">
-                {errors.cor.message}
-              </Text>
-            )}
-          </View>
+          <ColorPicker
+            label="Cor"
+            valor={field.value}
+            onChange={field.onChange}
+            error={errors.cor?.message}
+          />
         )}
       />
       <Button label="Criar categoria" onPress={enviar} loading={criar.isPending} />
@@ -152,22 +126,4 @@ export function CategoriaForm({ onCriada, onVoltar, grupoInicial = 'CARTAO' }: P
 
 const styles = StyleSheet.create({
   campo: { gap: tokens.space.xs },
-  paleta: { gap: tokens.space.xxs },
-  familia: { flexDirection: 'row', alignItems: 'center', gap: tokens.space.xs },
-  nomeFamilia: { flex: 1 },
-  amostraAlvo: {
-    width: tokens.size.touch,
-    height: tokens.size.touch,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: tokens.radius.full,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  marcada: { borderColor: tokens.color.text },
-  amostra: {
-    width: tokens.size.icon + tokens.space.sm,
-    height: tokens.size.icon + tokens.space.sm,
-    borderRadius: tokens.radius.full,
-  },
 });

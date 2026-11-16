@@ -6,6 +6,7 @@ import { TabBar, type IconName } from '@/shared/ui';
 const abas: Record<string, { label: string; icon: IconName }> = {
   painel: { label: 'Painel', icon: 'pie-chart' },
   gastos: { label: 'Gastos', icon: 'list' },
+  cartoes: { label: 'Cartões', icon: 'credit-card' },
   categorias: { label: 'Categorias', icon: 'tag' },
   perfil: { label: 'Perfil', icon: 'user' },
 };
@@ -28,6 +29,7 @@ export default function AbasLayout() {
     >
       <Tabs.Screen name="painel" />
       <Tabs.Screen name="gastos" />
+      <Tabs.Screen name="cartoes" />
       <Tabs.Screen name="categorias" />
       <Tabs.Screen name="perfil" />
     </Tabs>

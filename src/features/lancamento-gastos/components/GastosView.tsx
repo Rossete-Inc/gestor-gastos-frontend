@@ -23,7 +23,9 @@ import { useTelaGastos } from '../api/queries';
 import {
   FILTROS_DE_GRUPO,
   ROTULO_DO_GRUPO,
+  SEM_CARTAO,
   agruparPorDia,
+  type Cartao,
   type CategoriasPorGrupo,
   type FiltroGrupo,
   type Gasto,
@@ -34,26 +36,32 @@ type Props = {
   onAbrir: (id: string) => void;
   /** Mês aberto ao entrar; padrão é o mês corrente no fuso do dispositivo. */
   mesInicial?: string;
+  /** Cartão filtrado ao entrar, como na fatura aberta pela aba Cartões. */
+  cartaoInicial?: string;
 };
 
 const TODAS = '';
+const TODOS_OS_CARTOES = '';
 
-// Tela Gastos (spec lancamento-gastos, "Listagem de gastos"): mês, filtros
-// por grupo e categoria, lista do mais recente para o mais antigo agrupada
-// por dia e paginação por "Carregar mais".
-export function GastosView({ onNovo, onAbrir, mesInicial }: Props) {
+// Tela Gastos (spec lancamento-gastos, "Listagem de gastos"): mês de
+// referência, filtros por grupo, categoria e cartão, lista do mais recente
+// para o mais antigo agrupada por dia e paginação por "Carregar mais".
+export function GastosView({ onNovo, onAbrir, mesInicial, cartaoInicial }: Props) {
   const [mes, setMes] = useState(() => mesInicial ?? mesAtual());
   const [grupo, setGrupo] = useState<FiltroGrupo>('TODOS');
   const [categoriaId, setCategoriaId] = useState(TODAS);
+  const [cartaoId, setCartaoId] = useState(cartaoInicial ?? TODOS_OS_CARTOES);
 
   const gastos = useTelaGastos({
     mes,
     ...(grupo !== 'TODOS' ? { grupo } : {}),
     ...(categoriaId ? { categoriaId } : {}),
+    ...(cartaoId ? { cartaoId } : {}),
   });
 
-  // As categorias vêm com a página e não mudam com o filtro.
+  // As categorias e os cartões vêm com a página e não mudam com o filtro.
   const categorias = gastos.data?.pages[0]?.categorias;
+  const cartoes = gastos.data?.pages[0]?.cartoes;
   const itens = gastos.data?.pages.flatMap((p) => p.itens) ?? [];
 
   const trocarGrupo = (g: FiltroGrupo) => {
@@ -79,6 +87,12 @@ export function GastosView({ onNovo, onAbrir, mesInicial }: Props) {
         secoes={secoesDoFiltro(categorias, grupo)}
         onChange={setCategoriaId}
       />
+      <Select
+        label="Cartão"
+        valor={cartaoId}
+        secoes={secoesDeCartao(cartoes, cartaoId)}
+        onChange={setCartaoId}
+      />
       {gastos.isPending ? (
         <Text color="textMuted" accessibilityRole="progressbar">
           Carregando gastos…
@@ -90,7 +104,11 @@ export function GastosView({ onNovo, onAbrir, mesInicial }: Props) {
           <Button label="Tentar de novo" variant="secondary" onPress={() => gastos.refetch()} />
         </>
       ) : itens.length === 0 ? (
-        <Vazio mes={mes} filtrado={grupo !== 'TODOS' || !!categoriaId} onNovo={onNovo} />
+        <Vazio
+          mes={mes}
+          filtrado={grupo !== 'TODOS' || !!categoriaId || !!cartaoId}
+          onNovo={onNovo}
+        />
       ) : (
         <>
           {agruparPorDia(itens).map((dia) => (
@@ -144,11 +162,39 @@ function secoesDoFiltro(cats: CategoriasPorGrupo | undefined, grupo: FiltroGrupo
   return secoes;
 }
 
+// Filtro de cartão: todos, sem cartão e cada cartão (os arquivados também,
+// porque podem ter gastos no mês). Um cartão vindo da aba Cartões que ainda
+// não chegou na lista aparece como "Cartão selecionado".
+function secoesDeCartao(cartoes: readonly Cartao[] | undefined, atual: string): SecaoSelect[] {
+  const opcoes = (cartoes ?? []).map((c) => ({
+    valor: c.id,
+    label: c.arquivado ? `${c.apelido} (arquivado)` : c.apelido,
+    cor: c.cor,
+  }));
+  if (atual && atual !== SEM_CARTAO && !opcoes.some((o) => o.valor === atual)) {
+    opcoes.push({ valor: atual, label: 'Cartão selecionado', cor: tokens.color.textSubtle });
+  }
+  return [
+    {
+      opcoes: [
+        { valor: TODOS_OS_CARTOES, label: 'Todos os cartões' },
+        { valor: SEM_CARTAO, label: 'Sem cartão' },
+      ],
+    },
+    ...(opcoes.length > 0 ? [{ titulo: 'Cartões', opcoes }] : []),
+  ];
+}
+
 function ItemGasto({ gasto, onPress }: { gasto: Gasto; onPress: () => void }) {
+  const partes = [
+    gasto.categoria.nome,
+    ...(gasto.cartao ? [gasto.cartao.apelido] : []),
+    ...(gasto.recorrente ? ['recorrente'] : []),
+  ];
   return (
     <ExpenseItem
       titulo={gasto.descricao || gasto.categoria.nome}
-      detalhe={gasto.recorrente ? `${gasto.categoria.nome} · recorrente` : gasto.categoria.nome}
+      detalhe={partes.join(' · ')}
       valor={formatarCentavos(gasto.valorCentavos)}
       cor={gasto.categoria.cor}
       icone={gasto.grupo === 'FIXO' ? 'repeat' : 'credit-card'}

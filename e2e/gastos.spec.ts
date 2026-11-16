@@ -49,42 +49,42 @@ test('cadastro, login e ciclo de um gasto até o painel', async ({ page }) => {
     await page.getByLabel('Valor', { exact: true }).pressSequentially('12345');
     await expect(page.getByLabel('Valor', { exact: true })).toHaveValue('R$ 123,45');
     await page.getByRole('button', { name: /^Categoria:/ }).click();
-    await page.getByRole('radio', { name: 'Alimentação' }).click();
+    await page.getByRole('radio', { name: 'Internet' }).click();
     await page.getByLabel('Descrição', { exact: true }).fill(descricao);
     await page.getByRole('button', { name: 'Salvar gasto' }).click();
     await expect(
-      page.getByRole('button', { name: `${descricao}, Alimentação, R$ 123,45` }),
+      page.getByRole('button', { name: `${descricao}, Internet, R$ 123,45` }),
     ).toBeVisible();
   });
 
   await test.step('painel e pizza', async () => {
     await page.getByRole('tab', { name: 'Painel' }).click();
     await expect(page.getByText('Total do mês')).toBeVisible();
-    // Único gasto do mês: 100% em Alimentação, na legenda da pizza.
-    await expect(page.getByLabel(/^Alimentação: 100/)).toBeVisible();
+    // Único gasto do mês: 100% em Internet (fixo, sem cartão), na legenda da pizza.
+    await expect(page.getByLabel(/^Internet: 100/)).toBeVisible();
     await expect(page.getByLabel(/^Gráfico por categoria.*R\$ 123,45$/)).toBeVisible();
     await expect(
-      page.getByRole('button', { name: new RegExp(`^${descricao}, Alimentação`) }),
+      page.getByRole('button', { name: new RegExp(`^${descricao}, Internet`) }),
     ).toBeVisible();
   });
 
   await test.step('editar', async () => {
     await page.getByRole('tab', { name: 'Gastos' }).click();
     // Nome exato do item da lista de Gastos: o Painel mostra o mesmo gasto em
-    // "últimos lançamentos", com a data no meio ("Alimentação · 12/11").
+    // "últimos lançamentos", com a data no meio ("Internet · 12/11").
     await page
-      .getByRole('button', { name: `${descricao}, Alimentação, R$ 123,45`, exact: true })
+      .getByRole('button', { name: `${descricao}, Internet, R$ 123,45`, exact: true })
       .click();
     await page.getByLabel('Descrição', { exact: true }).fill(`${descricao} editado`);
     await page.getByRole('button', { name: 'Salvar gasto' }).click();
     await expect(
-      page.getByRole('button', { name: `${descricao} editado, Alimentação, R$ 123,45` }),
+      page.getByRole('button', { name: `${descricao} editado, Internet, R$ 123,45` }),
     ).toBeVisible();
   });
 
   await test.step('excluir', async () => {
     await page
-      .getByRole('button', { name: `${descricao} editado, Alimentação, R$ 123,45`, exact: true })
+      .getByRole('button', { name: `${descricao} editado, Internet, R$ 123,45`, exact: true })
       .click();
     await page.getByRole('button', { name: 'Excluir gasto' }).click();
     await page.getByRole('button', { name: 'Excluir', exact: true }).click();

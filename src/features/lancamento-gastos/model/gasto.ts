@@ -1,9 +1,12 @@
 import { z } from 'zod';
 
-import type { CategoriasPorGrupo, Gasto, GastoIn, Grupo } from '@/shared/api';
+import type { Cartao, CategoriasPorGrupo, Gasto, GastoIn, Grupo } from '@/shared/api';
 import { MAX_CENTAVOS, brParaISO, hojeISO, isoParaBR } from '@/shared/lib';
 
-export type { CategoriasPorGrupo, Gasto, GastoIn, Grupo };
+export type { Cartao, CategoriasPorGrupo, Gasto, GastoIn, Grupo };
+
+/** Filtro de cartão da lista que seleciona os gastos sem cartão (contrato do BFF). */
+export const SEM_CARTAO = 'SEM_CARTAO';
 
 /** Descrição máxima, igual ao GastoIn do contrato. */
 export const MAX_DESCRICAO = 140;
@@ -19,8 +22,8 @@ export const FILTROS_DE_GRUPO = [
   { valor: 'FIXO', label: 'Fixo' },
 ] as const satisfies readonly { valor: FiltroGrupo; label: string }[];
 
-/** Filtros da lista de gastos. Vazio = sem filtro. */
-export type FiltrosGastos = { mes: string; grupo?: Grupo; categoriaId?: string };
+/** Filtros da lista de gastos. Vazio = sem filtro; cartaoId aceita SEM_CARTAO. */
+export type FiltrosGastos = { mes: string; grupo?: Grupo; categoriaId?: string; cartaoId?: string };
 
 // Validação no cliente para responder rápido. A regra final (inclusive a
 // categoria existir e ser do usuário) é do BFF e do expenses-service.
@@ -37,6 +40,8 @@ export const GastoFormSchema = z.object({
     .trim()
     .max(MAX_DESCRICAO, `A descrição pode ter até ${MAX_DESCRICAO} caracteres.`),
   recorrente: z.boolean(),
+  /** "" = sem cartão. Obrigatório para categoria de cartão (conferido no formulário). */
+  cartaoId: z.string(),
 });
 
 export type GastoFormInput = z.infer<typeof GastoFormSchema>;
@@ -50,6 +55,7 @@ export function valoresIniciais(gasto?: Gasto, agora: Date = new Date()): GastoF
       categoriaId: '',
       descricao: '',
       recorrente: false,
+      cartaoId: '',
     };
   }
   return {
@@ -58,6 +64,7 @@ export function valoresIniciais(gasto?: Gasto, agora: Date = new Date()): GastoF
     categoriaId: gasto.categoria.id,
     descricao: gasto.descricao ?? '',
     recorrente: gasto.recorrente,
+    cartaoId: gasto.cartao?.id ?? '',
   };
 }
 
@@ -70,6 +77,7 @@ export function paraGastoIn(f: GastoFormInput): GastoIn {
     categoriaId: f.categoriaId,
     recorrente: f.recorrente,
     ...(descricao ? { descricao } : {}),
+    ...(f.cartaoId ? { cartaoId: f.cartaoId } : {}),
   };
 }
 
