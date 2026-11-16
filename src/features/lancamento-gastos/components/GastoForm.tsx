@@ -4,7 +4,7 @@ import { Controller, useForm, useWatch } from 'react-hook-form';
 import { StyleSheet, View } from 'react-native';
 
 import { ApiError } from '@/shared/api';
-import { mascararDataBR } from '@/shared/lib';
+import { brParaISO, mascararDataBR, mesDaFatura, rotuloCurtoDoMes } from '@/shared/lib';
 import {
   Badge,
   Banner,
@@ -34,6 +34,7 @@ import {
   grupoDaCategoria,
   paraGastoIn,
   valoresIniciais,
+  type Cartao,
   type CategoriasPorGrupo,
   type Gasto,
   type GastoFormInput,
@@ -47,8 +48,9 @@ type Props = {
 };
 
 // Tela Novo gasto / Editar gasto (spec lancamento-gastos, "Lançar gasto",
-// "Editar gasto" e "Excluir gasto"). Carrega as categorias e, na edição, o
-// gasto; o formulário só monta depois, já com os valores certos.
+// "Editar gasto" e "Excluir gasto"). Carrega as categorias, os cartões
+// ativos e, na edição, o gasto; o formulário só monta depois, já com os
+// valores certos.
 export function GastoForm({ id, onConcluido, onVoltar }: Props) {
   const tela = useTelaGastoForm(id);
   const titulo = id ? 'Editar gasto' : 'Novo gasto';
@@ -78,6 +80,7 @@ export function GastoForm({ id, onConcluido, onVoltar }: Props) {
     <Formulario
       titulo={titulo}
       categorias={tela.data.categorias}
+      cartoes={tela.data.cartoes}
       gasto={tela.data.gasto}
       onConcluido={onConcluido}
       onVoltar={onVoltar}
@@ -85,17 +88,18 @@ export function GastoForm({ id, onConcluido, onVoltar }: Props) {
   );
 }
 
-const campos = ['valorCentavos', 'data', 'categoriaId', 'descricao'] as const;
+const campos = ['valorCentavos', 'data', 'categoriaId', 'cartaoId', 'descricao'] as const;
 
 type FormProps = {
   titulo: string;
   categorias: CategoriasPorGrupo;
+  cartoes: readonly Cartao[];
   gasto?: Gasto;
   onConcluido: () => void;
   onVoltar: () => void;
 };
 
-function Formulario({ titulo, categorias, gasto, onConcluido, onVoltar }: FormProps) {
+function Formulario({ titulo, categorias, cartoes, gasto, onConcluido, onVoltar }: FormProps) {
   const criar = useCriarGasto();
   const atualizar = useAtualizarGasto(gasto?.id ?? '');
   const excluir = useExcluirGasto();
@@ -120,9 +124,19 @@ function Formulario({ titulo, categorias, gasto, onConcluido, onVoltar }: FormPr
     }
   };
 
-  const enviar = handleSubmit((dados) =>
-    salvar.mutate(paraGastoIn(dados), { onSuccess: onConcluido, onError: aoFalhar }),
-  );
+  const grupo = grupoDaCategoria(categorias, useWatch({ control, name: 'categoriaId' }));
+  const cartaoId = useWatch({ control, name: 'cartaoId' });
+  const data = useWatch({ control, name: 'data' });
+
+  const enviar = handleSubmit((dados) => {
+    // Categoria de cartão exige cartão (spec, "Gasto de cartão sem cartão");
+    // o BFF confere de novo.
+    if (grupoDaCategoria(categorias, dados.categoriaId) === 'CARTAO' && !dados.cartaoId) {
+      setError('cartaoId', { message: 'Escolha o cartão.' });
+      return;
+    }
+    salvar.mutate(paraGastoIn(dados), { onSuccess: onConcluido, onError: aoFalhar });
+  });
 
   const confirmarExclusao = () => {
     if (!gasto) return;
@@ -136,7 +150,7 @@ function Formulario({ titulo, categorias, gasto, onConcluido, onVoltar }: FormPr
   };
 
   const erro = salvar.error && salvar.error.errors.length === 0 ? salvar.error : excluir.error;
-  const grupo = grupoDaCategoria(categorias, useWatch({ control, name: 'categoriaId' }));
+  const fatura = faturaPrevista(cartoes, cartaoId, data);
 
   return (
     <Screen
@@ -185,6 +199,27 @@ function Formulario({ titulo, categorias, gasto, onConcluido, onVoltar }: FormPr
           />
         </View>
       )}
+      {grupo && (
+        <Controller
+          control={control}
+          name="cartaoId"
+          render={({ field }) => (
+            <Select
+              label={grupo === 'CARTAO' ? 'Cartão' : 'Pagar no cartão (opcional)'}
+              placeholder="Escolha o cartão"
+              valor={grupo === 'CARTAO' ? field.value || null : field.value}
+              secoes={secoesDeCartao(cartoes, grupo === 'FIXO')}
+              onChange={field.onChange}
+              error={errors.cartaoId?.message}
+            />
+          )}
+        />
+      )}
+      {grupo === 'CARTAO' && cartoes.length === 0 && (
+        <Text variant="caption" color="textMuted">
+          Cadastre um cartão na aba Cartões para lançar gastos de cartão.
+        </Text>
+      )}
       <Controller
         control={control}
         name="data"
@@ -199,6 +234,7 @@ function Formulario({ titulo, categorias, gasto, onConcluido, onVoltar }: FormPr
             inputMode="numeric"
             maxLength={10}
             error={errors.data?.message}
+            {...(fatura ? { hint: `Entra na fatura de ${fatura}` } : {})}
           />
         )}
       />
@@ -249,6 +285,20 @@ function Formulario({ titulo, categorias, gasto, onConcluido, onVoltar }: FormPr
       />
     </Screen>
   );
+}
+
+function secoesDeCartao(cartoes: readonly Cartao[], comSemCartao: boolean): SecaoSelect[] {
+  const opcoes = cartoes.map((c) => ({ valor: c.id, label: c.apelido, cor: c.cor }));
+  return [{ opcoes: comSemCartao ? [{ valor: '', label: 'Sem cartão' }, ...opcoes] : opcoes }];
+}
+
+/** "dez/2026": a fatura em que o gasto vai entrar, se cartão e data valerem. */
+function faturaPrevista(cartoes: readonly Cartao[], cartaoId: string, data: string): string | null {
+  const c = cartoes.find((x) => x.id === cartaoId);
+  const iso = brParaISO(data);
+  if (!c || !iso) return null;
+  const mes = mesDaFatura(iso, c.diaFechamento, c.diaVencimento);
+  return mes ? rotuloCurtoDoMes(mes) : null;
 }
 
 function secoes(cats: CategoriasPorGrupo): SecaoSelect[] {

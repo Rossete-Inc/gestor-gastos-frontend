@@ -24,7 +24,7 @@
  * - **Isolamento:** o usuário é sempre o do token. Recurso de outro usuário
  *   responde 404, como se não existisse.
  *
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.2.0
  */
 import * as zod from 'zod';
 
@@ -45,9 +45,11 @@ export const ObterMeResponse = zod.object({
 
 
 /**
- * Totais do mês e por grupo, fatias da pizza nas quatro visões (todas as
- * categorias, só `CARTAO`, só `FIXO` e por grupo) e os 5 gastos mais
- * recentes. Mês sem gastos devolve totais zerados e listas vazias.
+ * Totais do mês de referência, por grupo e por cartão; fatias da pizza
+ * nas cinco visões (todas as categorias, só `CARTAO`, só `FIXO`, por
+ * grupo e por cartão), cada uma com o detalhe da fatia; e os 5 gastos
+ * mais recentes. Gasto de cartão conta no mês da fatura. Mês sem gastos
+ * devolve totais zerados e listas vazias.
  * @summary Painel do mês
  */
 export const obterTelaDashboardQueryMesRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
@@ -65,11 +67,17 @@ export const obterTelaDashboardResponseTotaisPorGrupoItemTotalCentavosMin = 0;
 export const obterTelaDashboardResponseTotaisPorGrupoMin = 2;
 export const obterTelaDashboardResponseTotaisPorGrupoMax = 2;
 
+export const obterTelaDashboardResponseTotaisPorCartaoItemCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const obterTelaDashboardResponseTotaisPorCartaoItemTotalCentavosMin = 0;
+
 export const obterTelaDashboardResponsePizzaTodasItemCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const obterTelaDashboardResponsePizzaTodasItemTotalCentavosMin = 0;
 
 export const obterTelaDashboardResponsePizzaTodasItemPercentualDecimosMin = 0;
 export const obterTelaDashboardResponsePizzaTodasItemPercentualDecimosMax = 1000;
+
+export const obterTelaDashboardResponsePizzaTodasItemDetalheItemCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const obterTelaDashboardResponsePizzaTodasItemDetalheItemTotalCentavosMin = 0;
 
 export const obterTelaDashboardResponsePizzaCARTAOItemCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const obterTelaDashboardResponsePizzaCARTAOItemTotalCentavosMin = 0;
@@ -77,11 +85,17 @@ export const obterTelaDashboardResponsePizzaCARTAOItemTotalCentavosMin = 0;
 export const obterTelaDashboardResponsePizzaCARTAOItemPercentualDecimosMin = 0;
 export const obterTelaDashboardResponsePizzaCARTAOItemPercentualDecimosMax = 1000;
 
+export const obterTelaDashboardResponsePizzaCARTAOItemDetalheItemCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const obterTelaDashboardResponsePizzaCARTAOItemDetalheItemTotalCentavosMin = 0;
+
 export const obterTelaDashboardResponsePizzaFIXOItemCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const obterTelaDashboardResponsePizzaFIXOItemTotalCentavosMin = 0;
 
 export const obterTelaDashboardResponsePizzaFIXOItemPercentualDecimosMin = 0;
 export const obterTelaDashboardResponsePizzaFIXOItemPercentualDecimosMax = 1000;
+
+export const obterTelaDashboardResponsePizzaFIXOItemDetalheItemCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const obterTelaDashboardResponsePizzaFIXOItemDetalheItemTotalCentavosMin = 0;
 
 export const obterTelaDashboardResponsePizzaGruposItemCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const obterTelaDashboardResponsePizzaGruposItemTotalCentavosMin = 0;
@@ -89,7 +103,21 @@ export const obterTelaDashboardResponsePizzaGruposItemTotalCentavosMin = 0;
 export const obterTelaDashboardResponsePizzaGruposItemPercentualDecimosMin = 0;
 export const obterTelaDashboardResponsePizzaGruposItemPercentualDecimosMax = 1000;
 
+export const obterTelaDashboardResponsePizzaGruposItemDetalheItemCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const obterTelaDashboardResponsePizzaGruposItemDetalheItemTotalCentavosMin = 0;
+
+export const obterTelaDashboardResponsePizzaCartoesItemCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const obterTelaDashboardResponsePizzaCartoesItemTotalCentavosMin = 0;
+
+export const obterTelaDashboardResponsePizzaCartoesItemPercentualDecimosMin = 0;
+export const obterTelaDashboardResponsePizzaCartoesItemPercentualDecimosMax = 1000;
+
+export const obterTelaDashboardResponsePizzaCartoesItemDetalheItemCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const obterTelaDashboardResponsePizzaCartoesItemDetalheItemTotalCentavosMin = 0;
+
+export const obterTelaDashboardResponseUltimosItemMesReferenciaRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
 export const obterTelaDashboardResponseUltimosItemCategoriaCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const obterTelaDashboardResponseUltimosItemCartaoCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const obterTelaDashboardResponseUltimosMax = 5;
 
 
@@ -101,64 +129,117 @@ export const ObterTelaDashboardResponse = zod.object({
   "grupo": zod.enum(['CARTAO', 'FIXO']),
   "totalCentavos": zod.int().min(obterTelaDashboardResponseTotaisPorGrupoItemTotalCentavosMin).describe('Valor em centavos de real.')
 })).min(obterTelaDashboardResponseTotaisPorGrupoMin).max(obterTelaDashboardResponseTotaisPorGrupoMax).describe('Sempre CARTAO e FIXO, nessa ordem; a soma é igual a totalCentavos.'),
+  "totaisPorCartao": zod.array(zod.object({
+  "cartaoId": zod.string().optional(),
+  "nome": zod.string(),
+  "cor": zod.string().regex(obterTelaDashboardResponseTotaisPorCartaoItemCorRegExp).optional(),
+  "totalCentavos": zod.int().min(obterTelaDashboardResponseTotaisPorCartaoItemTotalCentavosMin).describe('Valor em centavos de real.')
+}).describe('Total de um cartão no mês. Sem `cartaoId` = "Sem cartão".')).describe('Cartões com gasto no mês e "Sem cartão", do maior para o menor; a soma é igual a totalCentavos.'),
   "pizza": zod.object({
   "todas": zod.array(zod.object({
   "categoriaId": zod.string().optional(),
+  "cartaoId": zod.string().optional(),
   "grupo": zod.enum(['CARTAO', 'FIXO']).optional(),
   "nome": zod.string(),
   "cor": zod.string().regex(obterTelaDashboardResponsePizzaTodasItemCorRegExp).optional(),
   "totalCentavos": zod.int().min(obterTelaDashboardResponsePizzaTodasItemTotalCentavosMin).describe('Valor em centavos de real.'),
-  "percentualDecimos": zod.int().min(obterTelaDashboardResponsePizzaTodasItemPercentualDecimosMin).max(obterTelaDashboardResponsePizzaTodasItemPercentualDecimosMax).describe('Décimos de ponto percentual (750 = 75,0%). Somam 1000 em cada visão não vazia.')
-}).describe('Fatia da pizza. Categorias trazem `categoriaId` e `cor`; grupos trazem `grupo`.')),
+  "percentualDecimos": zod.int().min(obterTelaDashboardResponsePizzaTodasItemPercentualDecimosMin).max(obterTelaDashboardResponsePizzaTodasItemPercentualDecimosMax).describe('Décimos de ponto percentual (750 = 75,0%). Somam 1000 em cada visão não vazia.'),
+  "detalhe": zod.array(zod.object({
+  "rotulo": zod.string(),
+  "cor": zod.string().regex(obterTelaDashboardResponsePizzaTodasItemDetalheItemCorRegExp).optional(),
+  "totalCentavos": zod.int().min(obterTelaDashboardResponsePizzaTodasItemDetalheItemTotalCentavosMin).describe('Valor em centavos de real.')
+})).describe('Partes da fatia, do maior valor para o menor; a soma é o total da fatia.')
+}).describe('Fatia da pizza. Categorias trazem `categoriaId`, `grupo` e `cor`;\ngrupos trazem `grupo`; cartões trazem `cartaoId` (ausente na fatia\n"Sem cartão") e `cor`. `detalhe` divide o valor da fatia: por cartão\nnas visões de categoria e de grupo, por grupo na visão de cartões.\n')),
   "CARTAO": zod.array(zod.object({
   "categoriaId": zod.string().optional(),
+  "cartaoId": zod.string().optional(),
   "grupo": zod.enum(['CARTAO', 'FIXO']).optional(),
   "nome": zod.string(),
   "cor": zod.string().regex(obterTelaDashboardResponsePizzaCARTAOItemCorRegExp).optional(),
   "totalCentavos": zod.int().min(obterTelaDashboardResponsePizzaCARTAOItemTotalCentavosMin).describe('Valor em centavos de real.'),
-  "percentualDecimos": zod.int().min(obterTelaDashboardResponsePizzaCARTAOItemPercentualDecimosMin).max(obterTelaDashboardResponsePizzaCARTAOItemPercentualDecimosMax).describe('Décimos de ponto percentual (750 = 75,0%). Somam 1000 em cada visão não vazia.')
-}).describe('Fatia da pizza. Categorias trazem `categoriaId` e `cor`; grupos trazem `grupo`.')),
+  "percentualDecimos": zod.int().min(obterTelaDashboardResponsePizzaCARTAOItemPercentualDecimosMin).max(obterTelaDashboardResponsePizzaCARTAOItemPercentualDecimosMax).describe('Décimos de ponto percentual (750 = 75,0%). Somam 1000 em cada visão não vazia.'),
+  "detalhe": zod.array(zod.object({
+  "rotulo": zod.string(),
+  "cor": zod.string().regex(obterTelaDashboardResponsePizzaCARTAOItemDetalheItemCorRegExp).optional(),
+  "totalCentavos": zod.int().min(obterTelaDashboardResponsePizzaCARTAOItemDetalheItemTotalCentavosMin).describe('Valor em centavos de real.')
+})).describe('Partes da fatia, do maior valor para o menor; a soma é o total da fatia.')
+}).describe('Fatia da pizza. Categorias trazem `categoriaId`, `grupo` e `cor`;\ngrupos trazem `grupo`; cartões trazem `cartaoId` (ausente na fatia\n"Sem cartão") e `cor`. `detalhe` divide o valor da fatia: por cartão\nnas visões de categoria e de grupo, por grupo na visão de cartões.\n')),
   "FIXO": zod.array(zod.object({
   "categoriaId": zod.string().optional(),
+  "cartaoId": zod.string().optional(),
   "grupo": zod.enum(['CARTAO', 'FIXO']).optional(),
   "nome": zod.string(),
   "cor": zod.string().regex(obterTelaDashboardResponsePizzaFIXOItemCorRegExp).optional(),
   "totalCentavos": zod.int().min(obterTelaDashboardResponsePizzaFIXOItemTotalCentavosMin).describe('Valor em centavos de real.'),
-  "percentualDecimos": zod.int().min(obterTelaDashboardResponsePizzaFIXOItemPercentualDecimosMin).max(obterTelaDashboardResponsePizzaFIXOItemPercentualDecimosMax).describe('Décimos de ponto percentual (750 = 75,0%). Somam 1000 em cada visão não vazia.')
-}).describe('Fatia da pizza. Categorias trazem `categoriaId` e `cor`; grupos trazem `grupo`.')),
+  "percentualDecimos": zod.int().min(obterTelaDashboardResponsePizzaFIXOItemPercentualDecimosMin).max(obterTelaDashboardResponsePizzaFIXOItemPercentualDecimosMax).describe('Décimos de ponto percentual (750 = 75,0%). Somam 1000 em cada visão não vazia.'),
+  "detalhe": zod.array(zod.object({
+  "rotulo": zod.string(),
+  "cor": zod.string().regex(obterTelaDashboardResponsePizzaFIXOItemDetalheItemCorRegExp).optional(),
+  "totalCentavos": zod.int().min(obterTelaDashboardResponsePizzaFIXOItemDetalheItemTotalCentavosMin).describe('Valor em centavos de real.')
+})).describe('Partes da fatia, do maior valor para o menor; a soma é o total da fatia.')
+}).describe('Fatia da pizza. Categorias trazem `categoriaId`, `grupo` e `cor`;\ngrupos trazem `grupo`; cartões trazem `cartaoId` (ausente na fatia\n"Sem cartão") e `cor`. `detalhe` divide o valor da fatia: por cartão\nnas visões de categoria e de grupo, por grupo na visão de cartões.\n')),
   "grupos": zod.array(zod.object({
   "categoriaId": zod.string().optional(),
+  "cartaoId": zod.string().optional(),
   "grupo": zod.enum(['CARTAO', 'FIXO']).optional(),
   "nome": zod.string(),
   "cor": zod.string().regex(obterTelaDashboardResponsePizzaGruposItemCorRegExp).optional(),
   "totalCentavos": zod.int().min(obterTelaDashboardResponsePizzaGruposItemTotalCentavosMin).describe('Valor em centavos de real.'),
-  "percentualDecimos": zod.int().min(obterTelaDashboardResponsePizzaGruposItemPercentualDecimosMin).max(obterTelaDashboardResponsePizzaGruposItemPercentualDecimosMax).describe('Décimos de ponto percentual (750 = 75,0%). Somam 1000 em cada visão não vazia.')
-}).describe('Fatia da pizza. Categorias trazem `categoriaId` e `cor`; grupos trazem `grupo`.'))
+  "percentualDecimos": zod.int().min(obterTelaDashboardResponsePizzaGruposItemPercentualDecimosMin).max(obterTelaDashboardResponsePizzaGruposItemPercentualDecimosMax).describe('Décimos de ponto percentual (750 = 75,0%). Somam 1000 em cada visão não vazia.'),
+  "detalhe": zod.array(zod.object({
+  "rotulo": zod.string(),
+  "cor": zod.string().regex(obterTelaDashboardResponsePizzaGruposItemDetalheItemCorRegExp).optional(),
+  "totalCentavos": zod.int().min(obterTelaDashboardResponsePizzaGruposItemDetalheItemTotalCentavosMin).describe('Valor em centavos de real.')
+})).describe('Partes da fatia, do maior valor para o menor; a soma é o total da fatia.')
+}).describe('Fatia da pizza. Categorias trazem `categoriaId`, `grupo` e `cor`;\ngrupos trazem `grupo`; cartões trazem `cartaoId` (ausente na fatia\n"Sem cartão") e `cor`. `detalhe` divide o valor da fatia: por cartão\nnas visões de categoria e de grupo, por grupo na visão de cartões.\n')),
+  "cartoes": zod.array(zod.object({
+  "categoriaId": zod.string().optional(),
+  "cartaoId": zod.string().optional(),
+  "grupo": zod.enum(['CARTAO', 'FIXO']).optional(),
+  "nome": zod.string(),
+  "cor": zod.string().regex(obterTelaDashboardResponsePizzaCartoesItemCorRegExp).optional(),
+  "totalCentavos": zod.int().min(obterTelaDashboardResponsePizzaCartoesItemTotalCentavosMin).describe('Valor em centavos de real.'),
+  "percentualDecimos": zod.int().min(obterTelaDashboardResponsePizzaCartoesItemPercentualDecimosMin).max(obterTelaDashboardResponsePizzaCartoesItemPercentualDecimosMax).describe('Décimos de ponto percentual (750 = 75,0%). Somam 1000 em cada visão não vazia.'),
+  "detalhe": zod.array(zod.object({
+  "rotulo": zod.string(),
+  "cor": zod.string().regex(obterTelaDashboardResponsePizzaCartoesItemDetalheItemCorRegExp).optional(),
+  "totalCentavos": zod.int().min(obterTelaDashboardResponsePizzaCartoesItemDetalheItemTotalCentavosMin).describe('Valor em centavos de real.')
+})).describe('Partes da fatia, do maior valor para o menor; a soma é o total da fatia.')
+}).describe('Fatia da pizza. Categorias trazem `categoriaId`, `grupo` e `cor`;\ngrupos trazem `grupo`; cartões trazem `cartaoId` (ausente na fatia\n"Sem cartão") e `cor`. `detalhe` divide o valor da fatia: por cartão\nnas visões de categoria e de grupo, por grupo na visão de cartões.\n'))
 }).describe('Fatias em ordem decrescente de valor. Listas vazias no mês sem gastos.'),
   "ultimos": zod.array(zod.object({
   "id": zod.string(),
   "valorCentavos": zod.int(),
   "data": zod.iso.date(),
+  "mesReferencia": zod.string().regex(obterTelaDashboardResponseUltimosItemMesReferenciaRegExp),
   "grupo": zod.enum(['CARTAO', 'FIXO']),
   "categoria": zod.object({
   "id": zod.string(),
   "nome": zod.string(),
   "cor": zod.string().regex(obterTelaDashboardResponseUltimosItemCategoriaCorRegExp)
 }),
+  "cartao": zod.object({
+  "id": zod.string(),
+  "apelido": zod.string(),
+  "cor": zod.string().regex(obterTelaDashboardResponseUltimosItemCartaoCorRegExp)
+}).optional(),
   "descricao": zod.string().optional(),
   "recorrente": zod.boolean()
-}).describe('Gasto com a categoria já resolvida (nome e cor).')).max(obterTelaDashboardResponseUltimosMax).describe('Até 5 gastos mais recentes do mês.')
+}).describe('Gasto com a categoria e o cartão já resolvidos (nome e cor).')).max(obterTelaDashboardResponseUltimosMax).describe('Até 5 gastos mais recentes do mês.')
 })
 
 
 /**
- * Gastos do mês, do mais recente para o mais antigo, com filtros
- * opcionais por grupo e categoria e paginação por cursor. Traz também
- * as categorias visíveis, para montar os filtros.
+ * Gastos do mês de referência, do mais recente para o mais antigo, com
+ * filtros opcionais por grupo, categoria e cartão e paginação por
+ * cursor. Traz também as categorias visíveis e os cartões (ativos e
+ * arquivados), para montar os filtros.
  * @summary Lista de gastos do mês
  */
 export const obterTelaGastosQueryMesRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
 export const obterTelaGastosQueryCategoriaIdMax = 64;
+
+export const obterTelaGastosQueryCartaoIdMax = 64;
 
 export const obterTelaGastosQueryCursorMax = 2048;
 
@@ -171,14 +252,24 @@ export const ObterTelaGastosQueryParams = zod.object({
   "mes": zod.string().regex(obterTelaGastosQueryMesRegExp).describe('Mês no formato AAAA-MM. O app envia o mês corrente no fuso do dispositivo.'),
   "grupo": zod.enum(['CARTAO', 'FIXO']).optional(),
   "categoriaId": zod.string().min(1).max(obterTelaGastosQueryCategoriaIdMax).optional(),
+  "cartaoId": zod.string().min(1).max(obterTelaGastosQueryCartaoIdMax).optional().describe('ID do cartão, ou `SEM_CARTAO` para os gastos sem cartão.'),
   "cursor": zod.string().min(1).max(obterTelaGastosQueryCursorMax).optional().describe('Valor de `nextCursor` da página anterior.'),
   "limit": zod.int().min(1).max(obterTelaGastosQueryLimitMax).default(obterTelaGastosQueryLimitDefault).describe('Itens por página.')
 })
 
 export const obterTelaGastosResponseMesRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+export const obterTelaGastosResponseItensItemMesReferenciaRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
 export const obterTelaGastosResponseItensItemCategoriaCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const obterTelaGastosResponseItensItemCartaoCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const obterTelaGastosResponseCategoriasCARTAOItemCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const obterTelaGastosResponseCategoriasFIXOItemCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const obterTelaGastosResponseCartoesItemCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const obterTelaGastosResponseCartoesItemDiaFechamentoMax = 31;
+
+export const obterTelaGastosResponseCartoesItemDiaVencimentoMax = 31;
+
+export const obterTelaGastosResponseCartoesItemLimiteCentavosMin = 0;
+
 
 
 export const ObterTelaGastosResponse = zod.object({
@@ -187,15 +278,21 @@ export const ObterTelaGastosResponse = zod.object({
   "id": zod.string(),
   "valorCentavos": zod.int(),
   "data": zod.iso.date(),
+  "mesReferencia": zod.string().regex(obterTelaGastosResponseItensItemMesReferenciaRegExp),
   "grupo": zod.enum(['CARTAO', 'FIXO']),
   "categoria": zod.object({
   "id": zod.string(),
   "nome": zod.string(),
   "cor": zod.string().regex(obterTelaGastosResponseItensItemCategoriaCorRegExp)
 }),
+  "cartao": zod.object({
+  "id": zod.string(),
+  "apelido": zod.string(),
+  "cor": zod.string().regex(obterTelaGastosResponseItensItemCartaoCorRegExp)
+}).optional(),
   "descricao": zod.string().optional(),
   "recorrente": zod.boolean()
-}).describe('Gasto com a categoria já resolvida (nome e cor).')),
+}).describe('Gasto com a categoria e o cartão já resolvidos (nome e cor).')),
   "nextCursor": zod.string().optional(),
   "categorias": zod.object({
   "CARTAO": zod.array(zod.object({
@@ -212,14 +309,24 @@ export const ObterTelaGastosResponse = zod.object({
   "cor": zod.string().regex(obterTelaGastosResponseCategoriasFIXOItemCorRegExp),
   "padrao": zod.boolean().describe('true para as categorias do sistema, que não podem ser excluídas')
 }))
-}).describe('Categorias visíveis, em ordem alfabética dentro de cada grupo.')
+}).describe('Categorias visíveis, em ordem alfabética dentro de cada grupo.'),
+  "cartoes": zod.array(zod.object({
+  "id": zod.string(),
+  "apelido": zod.string(),
+  "cor": zod.string().regex(obterTelaGastosResponseCartoesItemCorRegExp),
+  "diaFechamento": zod.int().min(1).max(obterTelaGastosResponseCartoesItemDiaFechamentoMax).describe('Dia do mês; um dia que não existe no mês vale como o último dia.'),
+  "diaVencimento": zod.int().min(1).max(obterTelaGastosResponseCartoesItemDiaVencimentoMax).describe('Dia do mês; um dia que não existe no mês vale como o último dia.'),
+  "limiteCentavos": zod.int().min(obterTelaGastosResponseCartoesItemLimiteCentavosMin).describe('Valor em centavos de real.'),
+  "arquivado": zod.boolean()
+})).optional().describe('Todos os cartões, ativos e arquivados, para o filtro.')
 })
 
 
 /**
- * Categorias visíveis agrupadas por grupo. Com `id`, devolve também o
- * gasto para a tela de edição; gasto inexistente ou de outro usuário
- * responde 404.
+ * Categorias visíveis agrupadas por grupo e cartões ativos. Com `id`,
+ * devolve também o gasto para a tela de edição (e, se o cartão dele
+ * estiver arquivado, inclui esse cartão na lista); gasto inexistente ou
+ * de outro usuário responde 404.
  * @summary Dados do formulário de gasto
  */
 export const obterTelaGastoFormQueryIdMax = 64;
@@ -232,7 +339,16 @@ export const ObterTelaGastoFormQueryParams = zod.object({
 
 export const obterTelaGastoFormResponseCategoriasCARTAOItemCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const obterTelaGastoFormResponseCategoriasFIXOItemCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const obterTelaGastoFormResponseCartoesItemCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const obterTelaGastoFormResponseCartoesItemDiaFechamentoMax = 31;
+
+export const obterTelaGastoFormResponseCartoesItemDiaVencimentoMax = 31;
+
+export const obterTelaGastoFormResponseCartoesItemLimiteCentavosMin = 0;
+
+export const obterTelaGastoFormResponseGastoMesReferenciaRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
 export const obterTelaGastoFormResponseGastoCategoriaCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const obterTelaGastoFormResponseGastoCartaoCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 
 
 export const ObterTelaGastoFormResponse = zod.object({
@@ -252,24 +368,41 @@ export const ObterTelaGastoFormResponse = zod.object({
   "padrao": zod.boolean().describe('true para as categorias do sistema, que não podem ser excluídas')
 }))
 }).describe('Categorias visíveis, em ordem alfabética dentro de cada grupo.'),
+  "cartoes": zod.array(zod.object({
+  "id": zod.string(),
+  "apelido": zod.string(),
+  "cor": zod.string().regex(obterTelaGastoFormResponseCartoesItemCorRegExp),
+  "diaFechamento": zod.int().min(1).max(obterTelaGastoFormResponseCartoesItemDiaFechamentoMax).describe('Dia do mês; um dia que não existe no mês vale como o último dia.'),
+  "diaVencimento": zod.int().min(1).max(obterTelaGastoFormResponseCartoesItemDiaVencimentoMax).describe('Dia do mês; um dia que não existe no mês vale como o último dia.'),
+  "limiteCentavos": zod.int().min(obterTelaGastoFormResponseCartoesItemLimiteCentavosMin).describe('Valor em centavos de real.'),
+  "arquivado": zod.boolean()
+})).describe('Cartões ativos, mais o cartão arquivado do gasto em edição.'),
   "gasto": zod.object({
   "id": zod.string(),
   "valorCentavos": zod.int(),
   "data": zod.iso.date(),
+  "mesReferencia": zod.string().regex(obterTelaGastoFormResponseGastoMesReferenciaRegExp),
   "grupo": zod.enum(['CARTAO', 'FIXO']),
   "categoria": zod.object({
   "id": zod.string(),
   "nome": zod.string(),
   "cor": zod.string().regex(obterTelaGastoFormResponseGastoCategoriaCorRegExp)
 }),
+  "cartao": zod.object({
+  "id": zod.string(),
+  "apelido": zod.string(),
+  "cor": zod.string().regex(obterTelaGastoFormResponseGastoCartaoCorRegExp)
+}).optional(),
   "descricao": zod.string().optional(),
   "recorrente": zod.boolean()
-}).optional().describe('Gasto com a categoria já resolvida (nome e cor).')
+}).optional().describe('Gasto com a categoria e o cartão já resolvidos (nome e cor).')
 })
 
 
 /**
- * O grupo do gasto é o grupo da categoria escolhida.
+ * O grupo do gasto é o grupo da categoria escolhida. Categoria do grupo
+ * `CARTAO` exige `cartaoId`; `FIXO` aceita cartão opcional. Com cartão,
+ * o gasto entra no mês da fatura (`mesReferencia`).
  * @summary Lançar gasto
  */
 export const criarGastoBodyValorCentavosMax = 100000000;
@@ -279,35 +412,49 @@ export const criarGastoBodyCategoriaIdMax = 64;
 export const criarGastoBodyDescricaoMax = 140;
 
 export const criarGastoBodyRecorrenteDefault = false;
+export const criarGastoBodyCartaoIdMax = 64;
+
+
 
 export const CriarGastoBody = zod.object({
   "valorCentavos": zod.int().min(1).max(criarGastoBodyValorCentavosMax).describe('De R$ 0,01 a R$ 1.000.000,00.'),
   "data": zod.iso.date(),
   "categoriaId": zod.string().min(1).max(criarGastoBodyCategoriaIdMax),
   "descricao": zod.string().max(criarGastoBodyDescricaoMax).optional(),
-  "recorrente": zod.boolean().default(criarGastoBodyRecorrenteDefault).describe('Só informativo no MVP')
+  "recorrente": zod.boolean().default(criarGastoBodyRecorrenteDefault).describe('Só informativo no MVP'),
+  "cartaoId": zod.string().min(1).max(criarGastoBodyCartaoIdMax).optional().describe('Cartão ativo do usuário. Obrigatório para categoria do grupo `CARTAO`; opcional para `FIXO`.')
 })
 
+export const criarGastoResponseMesReferenciaRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
 export const criarGastoResponseCategoriaCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const criarGastoResponseCartaoCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 
 
 export const CriarGastoResponse = zod.object({
   "id": zod.string(),
   "valorCentavos": zod.int(),
   "data": zod.iso.date(),
+  "mesReferencia": zod.string().regex(criarGastoResponseMesReferenciaRegExp),
   "grupo": zod.enum(['CARTAO', 'FIXO']),
   "categoria": zod.object({
   "id": zod.string(),
   "nome": zod.string(),
   "cor": zod.string().regex(criarGastoResponseCategoriaCorRegExp)
 }),
+  "cartao": zod.object({
+  "id": zod.string(),
+  "apelido": zod.string(),
+  "cor": zod.string().regex(criarGastoResponseCartaoCorRegExp)
+}).optional(),
   "descricao": zod.string().optional(),
   "recorrente": zod.boolean()
-}).describe('Gasto com a categoria já resolvida (nome e cor).')
+}).describe('Gasto com a categoria e o cartão já resolvidos (nome e cor).')
 
 
 /**
- * Mesmas validações do lançamento. Trocar a categoria pode trocar o grupo.
+ * Mesmas validações do lançamento. Trocar a categoria pode trocar o
+ * grupo; trocar a data ou o cartão recalcula o mês de referência e pode
+ * mudar o `id` do gasto. Manter o cartão atual vale mesmo arquivado.
  * @summary Editar gasto
  */
 export const atualizarGastoPathIdMax = 64;
@@ -325,31 +472,43 @@ export const atualizarGastoBodyCategoriaIdMax = 64;
 export const atualizarGastoBodyDescricaoMax = 140;
 
 export const atualizarGastoBodyRecorrenteDefault = false;
+export const atualizarGastoBodyCartaoIdMax = 64;
+
+
 
 export const AtualizarGastoBody = zod.object({
   "valorCentavos": zod.int().min(1).max(atualizarGastoBodyValorCentavosMax).describe('De R$ 0,01 a R$ 1.000.000,00.'),
   "data": zod.iso.date(),
   "categoriaId": zod.string().min(1).max(atualizarGastoBodyCategoriaIdMax),
   "descricao": zod.string().max(atualizarGastoBodyDescricaoMax).optional(),
-  "recorrente": zod.boolean().default(atualizarGastoBodyRecorrenteDefault).describe('Só informativo no MVP')
+  "recorrente": zod.boolean().default(atualizarGastoBodyRecorrenteDefault).describe('Só informativo no MVP'),
+  "cartaoId": zod.string().min(1).max(atualizarGastoBodyCartaoIdMax).optional().describe('Cartão ativo do usuário. Obrigatório para categoria do grupo `CARTAO`; opcional para `FIXO`.')
 })
 
+export const atualizarGastoResponseMesReferenciaRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
 export const atualizarGastoResponseCategoriaCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const atualizarGastoResponseCartaoCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 
 
 export const AtualizarGastoResponse = zod.object({
   "id": zod.string(),
   "valorCentavos": zod.int(),
   "data": zod.iso.date(),
+  "mesReferencia": zod.string().regex(atualizarGastoResponseMesReferenciaRegExp),
   "grupo": zod.enum(['CARTAO', 'FIXO']),
   "categoria": zod.object({
   "id": zod.string(),
   "nome": zod.string(),
   "cor": zod.string().regex(atualizarGastoResponseCategoriaCorRegExp)
 }),
+  "cartao": zod.object({
+  "id": zod.string(),
+  "apelido": zod.string(),
+  "cor": zod.string().regex(atualizarGastoResponseCartaoCorRegExp)
+}).optional(),
   "descricao": zod.string().optional(),
   "recorrente": zod.boolean()
-}).describe('Gasto com a categoria já resolvida (nome e cor).')
+}).describe('Gasto com a categoria e o cartão já resolvidos (nome e cor).')
 
 
 /**
@@ -430,6 +589,224 @@ export const ExcluirCategoriaParams = zod.object({
 })
 
 export const ExcluirCategoriaResponse = zod.void()
+
+
+/**
+ * Todos os cartões (ativos e arquivados) com o total da fatura do mês
+ * pedido, o vencimento dela e o limite usado e disponível hoje. O limite
+ * usado soma as faturas que ainda não venceram, inclusive as futuras.
+ * @summary Cartões com a fatura do mês e o limite
+ */
+export const obterTelaCartoesQueryMesRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+export const ObterTelaCartoesQueryParams = zod.object({
+  "mes": zod.string().regex(obterTelaCartoesQueryMesRegExp).describe('Mês no formato AAAA-MM. O app envia o mês corrente no fuso do dispositivo.')
+})
+
+export const obterTelaCartoesResponseMesRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+export const obterTelaCartoesResponseCartoesItemCartaoCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const obterTelaCartoesResponseCartoesItemCartaoDiaFechamentoMax = 31;
+
+export const obterTelaCartoesResponseCartoesItemCartaoDiaVencimentoMax = 31;
+
+export const obterTelaCartoesResponseCartoesItemCartaoLimiteCentavosMin = 0;
+
+export const obterTelaCartoesResponseCartoesItemFaturaCentavosMin = 0;
+
+export const obterTelaCartoesResponseCartoesItemLimiteUsadoCentavosMin = 0;
+
+
+
+export const ObterTelaCartoesResponse = zod.object({
+  "mes": zod.string().regex(obterTelaCartoesResponseMesRegExp),
+  "hoje": zod.iso.date(),
+  "cartoes": zod.array(zod.object({
+  "cartao": zod.object({
+  "id": zod.string(),
+  "apelido": zod.string(),
+  "cor": zod.string().regex(obterTelaCartoesResponseCartoesItemCartaoCorRegExp),
+  "diaFechamento": zod.int().min(1).max(obterTelaCartoesResponseCartoesItemCartaoDiaFechamentoMax).describe('Dia do mês; um dia que não existe no mês vale como o último dia.'),
+  "diaVencimento": zod.int().min(1).max(obterTelaCartoesResponseCartoesItemCartaoDiaVencimentoMax).describe('Dia do mês; um dia que não existe no mês vale como o último dia.'),
+  "limiteCentavos": zod.int().min(obterTelaCartoesResponseCartoesItemCartaoLimiteCentavosMin).describe('Valor em centavos de real.'),
+  "arquivado": zod.boolean()
+}),
+  "faturaCentavos": zod.int().min(obterTelaCartoesResponseCartoesItemFaturaCentavosMin).describe('Valor em centavos de real.'),
+  "vencimento": zod.iso.date(),
+  "limiteUsadoCentavos": zod.int().min(obterTelaCartoesResponseCartoesItemLimiteUsadoCentavosMin).describe('Valor em centavos de real.'),
+  "limiteDisponivelCentavos": zod.int().describe('Limite menos o usado; pode ser negativo.')
+})).describe('Na ordem de apelido; ativos e arquivados.')
+})
+
+
+/**
+ * Ativos e arquivados, em ordem de apelido.
+ * @summary Cartões do usuário
+ */
+export const listarCartoesResponseItensItemCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const listarCartoesResponseItensItemDiaFechamentoMax = 31;
+
+export const listarCartoesResponseItensItemDiaVencimentoMax = 31;
+
+export const listarCartoesResponseItensItemLimiteCentavosMin = 0;
+
+
+
+export const ListarCartoesResponse = zod.object({
+  "itens": zod.array(zod.object({
+  "id": zod.string(),
+  "apelido": zod.string(),
+  "cor": zod.string().regex(listarCartoesResponseItensItemCorRegExp),
+  "diaFechamento": zod.int().min(1).max(listarCartoesResponseItensItemDiaFechamentoMax).describe('Dia do mês; um dia que não existe no mês vale como o último dia.'),
+  "diaVencimento": zod.int().min(1).max(listarCartoesResponseItensItemDiaVencimentoMax).describe('Dia do mês; um dia que não existe no mês vale como o último dia.'),
+  "limiteCentavos": zod.int().min(listarCartoesResponseItensItemLimiteCentavosMin).describe('Valor em centavos de real.'),
+  "arquivado": zod.boolean()
+}))
+})
+
+
+/**
+ * Apelido único entre os cartões ativos; no máximo 20 ativos.
+ * @summary Cadastrar cartão
+ */
+export const criarCartaoBodyApelidoMax = 40;
+
+export const criarCartaoBodyCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const criarCartaoBodyDiaFechamentoMax = 31;
+
+export const criarCartaoBodyDiaVencimentoMax = 31;
+
+export const criarCartaoBodyLimiteCentavosMax = 100000000;
+
+
+
+export const CriarCartaoBody = zod.object({
+  "apelido": zod.string().min(1).max(criarCartaoBodyApelidoMax),
+  "cor": zod.string().regex(criarCartaoBodyCorRegExp),
+  "diaFechamento": zod.int().min(1).max(criarCartaoBodyDiaFechamentoMax).describe('Dia do mês; um dia que não existe no mês vale como o último dia.'),
+  "diaVencimento": zod.int().min(1).max(criarCartaoBodyDiaVencimentoMax).describe('Dia do mês; um dia que não existe no mês vale como o último dia.'),
+  "limiteCentavos": zod.int().min(1).max(criarCartaoBodyLimiteCentavosMax)
+})
+
+export const criarCartaoResponseCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const criarCartaoResponseDiaFechamentoMax = 31;
+
+export const criarCartaoResponseDiaVencimentoMax = 31;
+
+export const criarCartaoResponseLimiteCentavosMin = 0;
+
+
+
+export const CriarCartaoResponse = zod.object({
+  "id": zod.string(),
+  "apelido": zod.string(),
+  "cor": zod.string().regex(criarCartaoResponseCorRegExp),
+  "diaFechamento": zod.int().min(1).max(criarCartaoResponseDiaFechamentoMax).describe('Dia do mês; um dia que não existe no mês vale como o último dia.'),
+  "diaVencimento": zod.int().min(1).max(criarCartaoResponseDiaVencimentoMax).describe('Dia do mês; um dia que não existe no mês vale como o último dia.'),
+  "limiteCentavos": zod.int().min(criarCartaoResponseLimiteCentavosMin).describe('Valor em centavos de real.'),
+  "arquivado": zod.boolean()
+})
+
+
+/**
+ * Mudar os dias não recalcula os gastos já lançados.
+ * @summary Editar cartão
+ */
+export const atualizarCartaoPathIdMax = 64;
+
+
+
+export const AtualizarCartaoParams = zod.object({
+  "id": zod.string().min(1).max(atualizarCartaoPathIdMax)
+})
+
+export const atualizarCartaoBodyApelidoMax = 40;
+
+export const atualizarCartaoBodyCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const atualizarCartaoBodyDiaFechamentoMax = 31;
+
+export const atualizarCartaoBodyDiaVencimentoMax = 31;
+
+export const atualizarCartaoBodyLimiteCentavosMax = 100000000;
+
+
+
+export const AtualizarCartaoBody = zod.object({
+  "apelido": zod.string().min(1).max(atualizarCartaoBodyApelidoMax),
+  "cor": zod.string().regex(atualizarCartaoBodyCorRegExp),
+  "diaFechamento": zod.int().min(1).max(atualizarCartaoBodyDiaFechamentoMax).describe('Dia do mês; um dia que não existe no mês vale como o último dia.'),
+  "diaVencimento": zod.int().min(1).max(atualizarCartaoBodyDiaVencimentoMax).describe('Dia do mês; um dia que não existe no mês vale como o último dia.'),
+  "limiteCentavos": zod.int().min(1).max(atualizarCartaoBodyLimiteCentavosMax)
+})
+
+export const atualizarCartaoResponseCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const atualizarCartaoResponseDiaFechamentoMax = 31;
+
+export const atualizarCartaoResponseDiaVencimentoMax = 31;
+
+export const atualizarCartaoResponseLimiteCentavosMin = 0;
+
+
+
+export const AtualizarCartaoResponse = zod.object({
+  "id": zod.string(),
+  "apelido": zod.string(),
+  "cor": zod.string().regex(atualizarCartaoResponseCorRegExp),
+  "diaFechamento": zod.int().min(1).max(atualizarCartaoResponseDiaFechamentoMax).describe('Dia do mês; um dia que não existe no mês vale como o último dia.'),
+  "diaVencimento": zod.int().min(1).max(atualizarCartaoResponseDiaVencimentoMax).describe('Dia do mês; um dia que não existe no mês vale como o último dia.'),
+  "limiteCentavos": zod.int().min(atualizarCartaoResponseLimiteCentavosMin).describe('Valor em centavos de real.'),
+  "arquivado": zod.boolean()
+})
+
+
+/**
+ * Arquivado some do formulário de gasto; os gastos continuam nos totais.
+ * @summary Arquivar ou reativar cartão
+ */
+export const arquivarCartaoPathIdMax = 64;
+
+
+
+export const ArquivarCartaoParams = zod.object({
+  "id": zod.string().min(1).max(arquivarCartaoPathIdMax)
+})
+
+export const ArquivarCartaoBody = zod.object({
+  "arquivado": zod.boolean().describe('true arquiva; false reativa')
+})
+
+export const arquivarCartaoResponseCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const arquivarCartaoResponseDiaFechamentoMax = 31;
+
+export const arquivarCartaoResponseDiaVencimentoMax = 31;
+
+export const arquivarCartaoResponseLimiteCentavosMin = 0;
+
+
+
+export const ArquivarCartaoResponse = zod.object({
+  "id": zod.string(),
+  "apelido": zod.string(),
+  "cor": zod.string().regex(arquivarCartaoResponseCorRegExp),
+  "diaFechamento": zod.int().min(1).max(arquivarCartaoResponseDiaFechamentoMax).describe('Dia do mês; um dia que não existe no mês vale como o último dia.'),
+  "diaVencimento": zod.int().min(1).max(arquivarCartaoResponseDiaVencimentoMax).describe('Dia do mês; um dia que não existe no mês vale como o último dia.'),
+  "limiteCentavos": zod.int().min(arquivarCartaoResponseLimiteCentavosMin).describe('Valor em centavos de real.'),
+  "arquivado": zod.boolean()
+})
+
+
+/**
+ * @summary Excluir cartão sem gastos
+ */
+export const excluirCartaoPathIdMax = 64;
+
+
+
+export const ExcluirCartaoParams = zod.object({
+  "id": zod.string().min(1).max(excluirCartaoPathIdMax)
+})
+
+export const ExcluirCartaoResponse = zod.void()
 
 
 /**

@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react-native';
 import { http, HttpResponse } from 'msw';
 
 import { GastoForm } from '@/features/lancamento-gastos';
@@ -19,9 +19,22 @@ beforeEach(() =>
 );
 afterEach(() => configurarAutenticacao(null));
 
-const aluguel = { categoriaId: 'aluguel', nome: 'Aluguel', cor: '#0EA5E9' };
-const alimentacao = { categoriaId: 'alimentacao', nome: 'Alimentação', cor: '#F97316' };
-const transporte = { categoriaId: 'transporte', nome: 'Transporte', cor: '#3B82F6' };
+const aluguel = { categoriaId: 'aluguel', grupo: 'FIXO', nome: 'Aluguel', cor: '#0EA5E9' };
+const alimentacao = {
+  categoriaId: 'alimentacao',
+  grupo: 'CARTAO',
+  nome: 'Alimentação',
+  cor: '#F97316',
+};
+const transporte = {
+  categoriaId: 'transporte',
+  grupo: 'CARTAO',
+  nome: 'Transporte',
+  cor: '#3B82F6',
+};
+const nubank = { id: '01JC8Z6Q3N4W5X6Y7Z8A9B0NUB', apelido: 'Nubank', cor: '#7E22CE' };
+const inter = { id: '01JC8Z6Q3N4W5X6Y7Z8A9B0INT', apelido: 'Inter', cor: '#C2410C' };
+const semCartao = { rotulo: 'Sem cartão', cor: '#9E9E9E' };
 
 const gasto = (
   id: string,
@@ -34,14 +47,20 @@ const gasto = (
   id,
   valorCentavos: valor,
   data,
+  mesReferencia: data.slice(0, 7),
   grupo,
   categoria: { id: c.categoriaId, nome: c.nome, cor: c.cor },
   ...(descricao ? { descricao } : {}),
   recorrente: grupo === 'FIXO',
 });
 
-// Novembro: R$ 1.000,00 de cartão (Alimentação 750,00 e Transporte 250,00,
-// cenário "Participação por categoria") e R$ 1.500,00 fixos (Aluguel).
+// Novembro: R$ 1.000,00 de cartão (Alimentação 750,00, sendo 450,00 no
+// Nubank e 300,00 no Inter, e Transporte 250,00 no Nubank, cenário
+// "Participação por categoria") e R$ 1.500,00 fixos sem cartão (Aluguel).
+const detalheAlimentacao = [
+  { rotulo: 'Nubank', cor: nubank.cor, totalCentavos: 45_000 },
+  { rotulo: 'Inter', cor: inter.cor, totalCentavos: 30_000 },
+];
 const novembro = {
   mes: '2026-11',
   totalCentavos: 250_000,
@@ -49,20 +68,71 @@ const novembro = {
     { grupo: 'CARTAO', totalCentavos: 100_000 },
     { grupo: 'FIXO', totalCentavos: 150_000 },
   ],
+  totaisPorCartao: [
+    { nome: 'Sem cartão', cor: semCartao.cor, totalCentavos: 150_000 },
+    { cartaoId: nubank.id, nome: 'Nubank', cor: nubank.cor, totalCentavos: 70_000 },
+    { cartaoId: inter.id, nome: 'Inter', cor: inter.cor, totalCentavos: 30_000 },
+  ],
   pizza: {
     todas: [
-      { ...aluguel, totalCentavos: 150_000, percentualDecimos: 600 },
-      { ...alimentacao, totalCentavos: 75_000, percentualDecimos: 300 },
-      { ...transporte, totalCentavos: 25_000, percentualDecimos: 100 },
+      {
+        ...aluguel,
+        totalCentavos: 150_000,
+        percentualDecimos: 600,
+        detalhe: [{ ...semCartao, totalCentavos: 150_000 }],
+      },
+      {
+        ...alimentacao,
+        totalCentavos: 75_000,
+        percentualDecimos: 300,
+        detalhe: detalheAlimentacao,
+      },
+      { ...transporte, totalCentavos: 25_000, percentualDecimos: 100, detalhe: [] },
     ],
     CARTAO: [
-      { ...alimentacao, totalCentavos: 75_000, percentualDecimos: 750 },
-      { ...transporte, totalCentavos: 25_000, percentualDecimos: 250 },
+      {
+        ...alimentacao,
+        totalCentavos: 75_000,
+        percentualDecimos: 750,
+        detalhe: detalheAlimentacao,
+      },
+      { ...transporte, totalCentavos: 25_000, percentualDecimos: 250, detalhe: [] },
     ],
-    FIXO: [{ ...aluguel, totalCentavos: 150_000, percentualDecimos: 1000 }],
+    FIXO: [{ ...aluguel, totalCentavos: 150_000, percentualDecimos: 1000, detalhe: [] }],
     grupos: [
-      { grupo: 'FIXO', nome: 'Fixo', totalCentavos: 150_000, percentualDecimos: 600 },
-      { grupo: 'CARTAO', nome: 'Cartão', totalCentavos: 100_000, percentualDecimos: 400 },
+      { grupo: 'FIXO', nome: 'Fixo', totalCentavos: 150_000, percentualDecimos: 600, detalhe: [] },
+      {
+        grupo: 'CARTAO',
+        nome: 'Cartão',
+        totalCentavos: 100_000,
+        percentualDecimos: 400,
+        detalhe: [],
+      },
+    ],
+    cartoes: [
+      {
+        nome: 'Sem cartão',
+        cor: semCartao.cor,
+        totalCentavos: 150_000,
+        percentualDecimos: 600,
+        detalhe: [{ rotulo: 'Fixo', totalCentavos: 150_000 }],
+      },
+      {
+        cartaoId: nubank.id,
+        nome: 'Nubank',
+        cor: nubank.cor,
+        totalCentavos: 70_000,
+        percentualDecimos: 280,
+        detalhe: [{ rotulo: 'Cartão', totalCentavos: 70_000 }],
+      },
+      {
+        cartaoId: inter.id,
+        nome: 'Inter',
+        cor: inter.cor,
+        totalCentavos: 30_000,
+        percentualDecimos: 120,
+        detalhe: [{ rotulo: 'Cartão', totalCentavos: 30_000 }],
+      },
     ],
   },
   ultimos: [
@@ -93,7 +163,8 @@ const vazio = (mes: string) => ({
     { grupo: 'CARTAO', totalCentavos: 0 },
     { grupo: 'FIXO', totalCentavos: 0 },
   ],
-  pizza: { todas: [], CARTAO: [], FIXO: [], grupos: [] },
+  totaisPorCartao: [],
+  pizza: { todas: [], CARTAO: [], FIXO: [], grupos: [], cartoes: [] },
   ultimos: [],
 });
 
@@ -272,6 +343,15 @@ describe('PainelView', () => {
             ],
             FIXO: [],
           },
+          cartoes: [
+            {
+              ...nubank,
+              diaFechamento: 25,
+              diaVencimento: 5,
+              limiteCentavos: 500_000,
+              arquivado: false,
+            },
+          ],
         }),
       ),
       http.post(`${BFF}/gastos`, async ({ request }) => {
@@ -303,9 +383,75 @@ describe('PainelView', () => {
     await fireEvent.changeText(await screen.findByLabelText('Valor'), '4590');
     await fireEvent.press(screen.getByRole('button', { name: 'Categoria: Escolha a categoria' }));
     await fireEvent.press(screen.getByRole('radio', { name: 'Alimentação' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Cartão: Escolha o cartão' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Nubank' }));
     await fireEvent.changeText(screen.getByLabelText('Data'), '03112026');
     await fireEvent.press(screen.getByRole('button', { name: 'Salvar gasto' }));
 
     await waitFor(() => expect(screen.getByLabelText('Total do mês: R$ 45,90')).toBeOnTheScreen());
+  });
+});
+
+describe('PainelView por cartão', () => {
+  it('mostra os totais por cartão (cenário "Totais por cartão")', async () => {
+    server.use(bffDoPainel({ '2026-11': novembro }).handler);
+    await renderizar(<PainelView {...props()} mesInicial="2026-11" />);
+
+    expect(await screen.findByRole('header', { name: 'Por cartão' })).toBeOnTheScreen();
+    expect(screen.getByLabelText('Sem cartão: 60%, R$ 1.500,00')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Nubank: 28%, R$ 700,00')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Inter: 12%, R$ 300,00')).toBeOnTheScreen();
+  });
+
+  it('não mostra o bloco por cartão para quem não usa cartões', async () => {
+    const semCartoes = {
+      ...novembro,
+      totaisPorCartao: [{ nome: 'Sem cartão', cor: semCartao.cor, totalCentavos: 250_000 }],
+    };
+    server.use(bffDoPainel({ '2026-11': semCartoes }).handler);
+    await renderizar(<PainelView {...props()} mesInicial="2026-11" />);
+    await screen.findByLabelText('Total do mês: R$ 2.500,00');
+    expect(screen.queryByRole('header', { name: 'Por cartão' })).toBeNull();
+  });
+
+  it('tocar na legenda mostra o detalhe da fatia; tocar de novo fecha (spec, "Detalhe da fatia")', async () => {
+    server.use(bffDoPainel({ '2026-11': novembro }).handler);
+    await renderizar(<PainelView {...props()} mesInicial="2026-11" />);
+
+    const item = await screen.findByRole('button', { name: 'Alimentação: 30%, R$ 750,00' });
+    await fireEvent.press(item);
+    const detalhe = within(screen.getByTestId('detalhe-fatia'));
+    expect(detalhe.getByText('Alimentação · Cartão · R$ 750,00 · 30%')).toBeOnTheScreen();
+    expect(detalhe.getByText('Nubank')).toBeOnTheScreen();
+    expect(detalhe.getByText('R$ 450,00')).toBeOnTheScreen();
+    expect(detalhe.getByText('Inter')).toBeOnTheScreen();
+    expect(detalhe.getByText('R$ 300,00')).toBeOnTheScreen();
+
+    await fireEvent.press(item);
+    expect(screen.queryByText('Alimentação · Cartão · R$ 750,00 · 30%')).toBeNull();
+  });
+
+  it('o mouse sobre a legenda mostra o detalhe (web)', async () => {
+    server.use(bffDoPainel({ '2026-11': novembro }).handler);
+    await renderizar(<PainelView {...props()} mesInicial="2026-11" />);
+
+    await fireEvent(
+      await screen.findByRole('button', { name: 'Aluguel: 60%, R$ 1.500,00' }),
+      'hoverIn',
+    );
+    expect(screen.getByText('Aluguel · Fixo · R$ 1.500,00 · 60%')).toBeOnTheScreen();
+  });
+
+  it('visão por cartão: fatias dos cartões e detalhe por grupo (spec, "Visão por cartão")', async () => {
+    server.use(bffDoPainel({ '2026-11': novembro }).handler);
+    await renderizar(<PainelView {...props()} mesInicial="2026-11" />);
+
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Por cartão' }));
+    expect(screen.getByLabelText('Gráfico por cartão: total de R$ 2.500,00')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Nubank: 28%, R$ 700,00' }));
+    const detalhe = within(screen.getByTestId('detalhe-fatia'));
+    expect(detalhe.getByText('Nubank · R$ 700,00 · 28%')).toBeOnTheScreen();
+    expect(detalhe.getByText('Cartão')).toBeOnTheScreen();
+    expect(detalhe.getByText('R$ 700,00')).toBeOnTheScreen();
   });
 });

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ApiError } from '@/shared/api';
 import { formatarCentavos, mesAtual } from '@/shared/lib';
@@ -26,6 +26,7 @@ import {
   diaMes,
   fatiasDaVisao,
   formatarPercentual,
+  tituloDoDetalhe,
   totalDaVisao,
   type Fatia,
   type TelaDashboard,
@@ -41,8 +42,9 @@ type Props = {
   mesInicial?: string;
 };
 
-// Painel (spec painel-gastos): mês selecionável, total do mês e por grupo,
-// pizza por categoria com as visões Todos, Cartão e Fixo, e os 5 últimos
+// Painel (spec painel-gastos): mês de referência selecionável, total do mês,
+// por grupo e por cartão, pizza com as visões Todos, Cartão, Fixo e Por
+// cartão (com o detalhe da fatia ao tocar ou passar o mouse) e os 5 últimos
 // lançamentos. Mês sem gastos troca o gráfico por um atalho para lançar.
 export function PainelView({ onNovo, onAbrir, onVerTodos, mesInicial }: Props) {
   const [mes, setMes] = useState(() => mesInicial ?? mesAtual());
@@ -97,6 +99,7 @@ function Conteudo({
         <MesVazio onNovo={onNovo} />
       ) : (
         <>
+          <TotaisPorCartao tela={tela} />
           <PorCategoria tela={tela} />
           <View style={styles.cabecalhoUltimos}>
             <Text variant="subtitle" accessibilityRole="header">
@@ -124,18 +127,54 @@ function Conteudo({
   );
 }
 
-// Requirement "Gráfico de pizza por categoria": participação de cada
-// categoria, com valor e percentual por fatia, na cor da categoria.
-function PorCategoria({ tela }: { tela: TelaDashboard }) {
-  const [visao, setVisao] = useState<Visao>('todas');
-  const fatias = fatiasDaVisao(tela, visao);
-  const total = totalDaVisao(tela, visao);
-  const nomeDaVisao = VISOES.find((v) => v.valor === visao)!.label;
-
+// Requirement "Totais do mês" (cartoes-credito): total de cada cartão com
+// gasto no mês e "Sem cartão". Só aparece para quem lança em cartão.
+function TotaisPorCartao({ tela }: { tela: TelaDashboard }) {
+  if (!tela.totaisPorCartao.some((t) => t.cartaoId)) return null;
+  const percentual = (id?: string) =>
+    tela.pizza.cartoes.find((f) => f.cartaoId === id)?.percentualDecimos ?? 0;
   return (
     <View style={styles.cartao}>
       <Text variant="subtitle" accessibilityRole="header">
-        Por categoria
+        Por cartão
+      </Text>
+      <View style={styles.legenda}>
+        {tela.totaisPorCartao.map((t) => (
+          <LegendItem
+            key={t.cartaoId ?? 'sem-cartao'}
+            nome={t.nome}
+            cor={t.cor ?? tokens.color.textSubtle}
+            percentual={formatarPercentual(percentual(t.cartaoId))}
+            valor={formatarCentavos(t.totalCentavos)}
+          />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+// Requirement "Gráfico de pizza por categoria": participação de cada
+// categoria (ou cartão), com valor e percentual por fatia, na cor dela.
+// Tocar numa fatia ou no item da legenda (ou passar o mouse, na web) mostra
+// o detalhe dela; tocar fora fecha.
+function PorCategoria({ tela }: { tela: TelaDashboard }) {
+  const [visao, setVisaoAtual] = useState<Visao>('todas');
+  const [selecionada, setSelecionada] = useState<number | null>(null);
+  const fatias = fatiasDaVisao(tela, visao);
+  const total = totalDaVisao(tela, visao);
+  const nomeDaVisao = VISOES.find((v) => v.valor === visao)!.label;
+  const fatiaSelecionada = selecionada === null ? undefined : fatias[selecionada];
+
+  const setVisao = (v: Visao) => {
+    setVisaoAtual(v);
+    setSelecionada(null);
+  };
+  const alternar = (i: number) => setSelecionada((atual) => (atual === i ? null : i));
+
+  return (
+    <Pressable accessible={false} onPress={() => setSelecionada(null)} style={styles.cartao}>
+      <Text variant="subtitle" accessibilityRole="header">
+        {visao === 'cartoes' ? 'Por cartão' : 'Por categoria'}
       </Text>
       <SegmentedControl
         label="Visão do gráfico"
@@ -159,26 +198,55 @@ function PorCategoria({ tela }: { tela: TelaDashboard }) {
             }))}
             rotuloCentro="Total"
             valorCentro={formatarCentavos(total)}
-            accessibilityLabel={`Gráfico por categoria, ${nomeDaVisao.toLowerCase()}: total de ${formatarCentavos(total)}`}
+            accessibilityLabel={`Gráfico ${visao === 'cartoes' ? 'por cartão' : `por categoria, ${nomeDaVisao.toLowerCase()}`}: total de ${formatarCentavos(total)}`}
+            selecionada={selecionada}
+            onSelecionar={setSelecionada}
           />
+          {fatiaSelecionada && <DetalheFatia fatia={fatiaSelecionada} />}
           <View style={styles.legenda}>
-            {fatias.map((f) => (
+            {fatias.map((f, i) => (
               <LegendItem
                 key={chaveDaFatia(f)}
                 nome={f.nome}
                 cor={corDaFatia(f)}
                 percentual={formatarPercentual(f.percentualDecimos)}
                 valor={formatarCentavos(f.totalCentavos)}
+                selecionado={selecionada === i}
+                onPress={() => alternar(i)}
+                onHoverIn={() => setSelecionada(i)}
               />
             ))}
           </View>
         </>
       )}
+    </Pressable>
+  );
+}
+
+// Requirement "Detalhe da fatia do gráfico": nome, grupo, valor e
+// percentual, e a divisão por cartão (ou por grupo, na visão por cartão).
+function DetalheFatia({ fatia }: { fatia: Fatia }) {
+  return (
+    <View testID="detalhe-fatia" accessibilityLiveRegion="polite" style={styles.detalhe}>
+      <Text variant="label" accessibilityRole="header">
+        {tituloDoDetalhe(fatia, formatarCentavos(fatia.totalCentavos))}
+      </Text>
+      {fatia.detalhe.map((p) => (
+        <View key={p.rotulo} style={styles.parte}>
+          {p.cor && <View style={[styles.bolinha, { backgroundColor: p.cor }]} />}
+          <Text variant="body" style={styles.rotuloParte}>
+            {p.rotulo}
+          </Text>
+          <Text variant="body" style={styles.valorParte}>
+            {formatarCentavos(p.totalCentavos)}
+          </Text>
+        </View>
+      ))}
     </View>
   );
 }
 
-const chaveDaFatia = (f: Fatia) => f.categoriaId ?? f.grupo ?? f.nome;
+const chaveDaFatia = (f: Fatia) => f.categoriaId ?? f.cartaoId ?? f.grupo ?? f.nome;
 // Fatias de categoria sempre trazem a cor; a de grupo não é usada nesta tela.
 const corDaFatia = (f: Fatia) => f.cor ?? tokens.color.textSubtle;
 
@@ -218,6 +286,20 @@ const styles = StyleSheet.create({
   },
   semFatias: { paddingVertical: tokens.space.xl },
   legenda: { gap: tokens.space.xs },
+  detalhe: {
+    gap: tokens.space.xs,
+    padding: tokens.space.md,
+    borderRadius: tokens.radius.md,
+    backgroundColor: tokens.color.surfaceMuted,
+  },
+  parte: { flexDirection: 'row', alignItems: 'center', gap: tokens.space.sm },
+  bolinha: {
+    width: tokens.space.sm + tokens.space.xxs,
+    height: tokens.space.sm + tokens.space.xxs,
+    borderRadius: tokens.radius.full,
+  },
+  rotuloParte: { flex: 1 },
+  valorParte: { fontWeight: tokens.font.weight.semibold },
   cabecalhoUltimos: {
     flexDirection: 'row',
     alignItems: 'center',

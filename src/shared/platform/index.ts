@@ -3,3 +3,4 @@ export type { SecureStorage } from './secureStorage';
 export { bytesAleatorios } from './aleatorio';
 export { assinarConexao, estaOnline, registrarServiceWorker } from './pwa';
 export { prepararTelas } from './telas';
+export { ouvirPonteiro } from './ponteiro';

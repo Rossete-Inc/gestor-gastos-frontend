@@ -12,7 +12,8 @@ export const gastosKeys = {
 
 /**
  * Gastos do mês, do mais recente para o mais antigo, página a página pelo
- * cursor do BFF. Cada página traz também as categorias, para os filtros.
+ * cursor do BFF. Cada página traz também as categorias e os cartões, para os
+ * filtros.
  */
 export function useTelaGastos(f: FiltrosGastos) {
   return useInfiniteQuery({
@@ -24,6 +25,7 @@ export function useTelaGastos(f: FiltrosGastos) {
           mes: f.mes,
           ...(f.grupo ? { grupo: f.grupo } : {}),
           ...(f.categoriaId ? { categoriaId: f.categoriaId } : {}),
+          ...(f.cartaoId ? { cartaoId: f.cartaoId } : {}),
           ...(pageParam ? { cursor: pageParam } : {}),
         }),
       ),
@@ -31,7 +33,10 @@ export function useTelaGastos(f: FiltrosGastos) {
   });
 }
 
-/** Categorias para o formulário e, com id, o gasto em edição (404 se não for do usuário). */
+/**
+ * Categorias e cartões ativos para o formulário e, com id, o gasto em edição
+ * (404 se não for do usuário).
+ */
 export function useTelaGastoForm(id?: string) {
   return useQuery({
     queryKey: gastosKeys.form(id),

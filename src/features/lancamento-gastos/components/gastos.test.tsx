@@ -28,12 +28,26 @@ const aluguel = { id: 'aluguel', nome: 'Aluguel', grupo: 'FIXO', cor: '#0EA5E9',
 const categorias = { CARTAO: [alimentacao, lazer], FIXO: [aluguel] };
 const resumo = (c: typeof alimentacao) => ({ id: c.id, nome: c.nome, cor: c.cor });
 
+// Fecha dia 25 e vence dia 5: compra em 03/11 entra na fatura de dezembro.
+const nubank = {
+  id: '01JC8Z6Q3N4W5X6Y7Z8A9B0NUB',
+  apelido: 'Nubank',
+  cor: '#7E22CE',
+  diaFechamento: 25,
+  diaVencimento: 5,
+  limiteCentavos: 500000,
+  arquivado: false,
+};
+const cartoes = [nubank];
+
 type GastoApi = {
   id: string;
   valorCentavos: number;
   data: string;
+  mesReferencia: string;
   grupo: 'CARTAO' | 'FIXO';
   categoria: { id: string; nome: string; cor: string };
+  cartao?: { id: string; apelido: string; cor: string };
   descricao?: string;
   recorrente: boolean;
 };
@@ -42,6 +56,7 @@ const almoco: GastoApi = {
   id: '20261103-01JC8Z6Q3N4W5X6Y7Z8A9B0C1D',
   valorCentavos: 4590,
   data: '2026-11-03',
+  mesReferencia: '2026-11',
   grupo: 'CARTAO',
   categoria: resumo(alimentacao),
   descricao: 'Almoço',
@@ -51,14 +66,17 @@ const cinema: GastoApi = {
   id: '20261103-01JC8Z6Q3N4W5X6Y7Z8A9B0C1E',
   valorCentavos: 6400,
   data: '2026-11-03',
+  mesReferencia: '2026-11',
   grupo: 'CARTAO',
   categoria: resumo(lazer),
+  cartao: { id: nubank.id, apelido: nubank.apelido, cor: nubank.cor },
   recorrente: false,
 };
 const aluguelNov: GastoApi = {
   id: '20261101-01JC8Z6Q3N4W5X6Y7Z8A9B0C1F',
   valorCentavos: 150000,
   data: '2026-11-01',
+  mesReferencia: '2026-11',
   grupo: 'FIXO',
   categoria: resumo(aluguel),
   descricao: 'Aluguel',
@@ -84,9 +102,11 @@ function bffDeLista(itens: GastoApi[]) {
       pedidos.push(q);
       const filtrados = itens.filter(
         (g) =>
-          g.data.startsWith(q.get('mes')!) &&
+          g.mesReferencia === q.get('mes') &&
           (!q.get('grupo') || g.grupo === q.get('grupo')) &&
-          (!q.get('categoriaId') || g.categoria.id === q.get('categoriaId')),
+          (!q.get('categoriaId') || g.categoria.id === q.get('categoriaId')) &&
+          (!q.get('cartaoId') ||
+            (q.get('cartaoId') === 'SEM_CARTAO' ? !g.cartao : g.cartao?.id === q.get('cartaoId'))),
       );
       const inicio = Number(q.get('cursor') ?? '0');
       const pagina = filtrados.slice(inicio, inicio + 2);
@@ -95,6 +115,7 @@ function bffDeLista(itens: GastoApi[]) {
         mes: q.get('mes'),
         itens: pagina,
         categorias,
+        cartoes,
         ...(proximo ? { nextCursor: proximo } : {}),
       });
     }),
@@ -111,8 +132,9 @@ describe('GastosView', () => {
     expect(screen.getByRole('header', { name: 'Novembro de 2026' })).toBeOnTheScreen();
     expect(screen.getByRole('header', { name: 'Terça, 03/11' })).toBeOnTheScreen();
     expect(screen.getByText('R$ 45,90')).toBeOnTheScreen();
-    // Sem descrição, o título é o nome da categoria (e o detalhe também).
-    expect(screen.getAllByText('Lazer')).toHaveLength(2);
+    // Sem descrição, o título é o nome da categoria; o detalhe traz o cartão.
+    expect(screen.getByText('Lazer')).toBeOnTheScreen();
+    expect(screen.getByText('Lazer · Nubank')).toBeOnTheScreen();
     expect(bff.pedidos[0]!.get('mes')).toBe('2026-11');
     expect(bff.pedidos[0]!.has('grupo')).toBe(false);
   });
@@ -229,7 +251,7 @@ function bffDoFormulario(gasto?: GastoApi) {
         const id = new URL(request.url).searchParams.get('id');
         if (id && id !== gasto?.id)
           return problema(404, 'gasto_nao_encontrado', 'Gasto não encontrado.');
-        return HttpResponse.json({ categorias, ...(id ? { gasto } : {}) });
+        return HttpResponse.json({ categorias, cartoes, ...(id ? { gasto } : {}) });
       }),
       http.post(`${BFF}/gastos`, async ({ request }) => {
         const corpo = (await request.json()) as Record<string, unknown>;
@@ -240,7 +262,14 @@ function bffDoFormulario(gasto?: GastoApi) {
           ]);
         }
         return HttpResponse.json(
-          { ...almoco, ...corpo, categoria: resumo(alimentacao) },
+          {
+            ...almoco,
+            ...corpo,
+            categoria: resumo(alimentacao),
+            ...(corpo.cartaoId
+              ? { cartao: { id: nubank.id, apelido: 'Nubank', cor: nubank.cor } }
+              : {}),
+          },
           { status: 201 },
         );
       }),
@@ -276,11 +305,15 @@ describe('GastoForm', () => {
 
     await fireEvent.press(screen.getByRole('button', { name: 'Categoria: Escolha a categoria' }));
     await fireEvent.press(screen.getByRole('radio', { name: 'Alimentação' }));
-    expect(screen.getByText('Cartão')).toBeOnTheScreen();
+    expect(screen.getAllByText('Cartão').length).toBeGreaterThan(0);
+    await fireEvent.press(screen.getByRole('button', { name: 'Cartão: Escolha o cartão' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Nubank' }));
 
     const data = screen.getByLabelText('Data');
     await fireEvent.changeText(data, '03112026');
     expect(data).toHaveDisplayValue('03/11/2026');
+    // Fecha 25, vence 5: a compra de 03/11 entra na fatura de dezembro.
+    expect(screen.getByText('Entra na fatura de dez/2026')).toBeOnTheScreen();
     await fireEvent.changeText(screen.getByLabelText('Descrição'), '  Almoço  ');
     await fireEvent.press(screen.getByRole('button', { name: 'Salvar gasto' }));
 
@@ -291,7 +324,41 @@ describe('GastoForm', () => {
       categoriaId: 'alimentacao',
       descricao: 'Almoço',
       recorrente: false,
+      cartaoId: nubank.id,
     });
+  });
+
+  it('categoria de cartão exige cartão (spec, "Gasto de cartão sem cartão")', async () => {
+    const bff = bffDoFormulario();
+    server.use(...bff.handlers);
+    await renderizar(<GastoForm onConcluido={jest.fn()} onVoltar={jest.fn()} />);
+
+    await fireEvent.changeText(await screen.findByLabelText('Valor'), '100');
+    await fireEvent.press(screen.getByRole('button', { name: 'Categoria: Escolha a categoria' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Alimentação' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Salvar gasto' }));
+
+    expect(await screen.findByText('Escolha o cartão.')).toBeOnTheScreen();
+    expect(bff.corpos).toHaveLength(0);
+  });
+
+  it('gasto fixo pode ir para um cartão (spec, "Gasto fixo no cartão")', async () => {
+    const bff = bffDoFormulario();
+    server.use(...bff.handlers);
+    await renderizar(<GastoForm onConcluido={jest.fn()} onVoltar={jest.fn()} />);
+
+    await fireEvent.changeText(await screen.findByLabelText('Valor'), '3990');
+    await fireEvent.press(screen.getByRole('button', { name: 'Categoria: Escolha a categoria' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Aluguel' }));
+    // Em FIXO o cartão é opcional e começa em "Sem cartão".
+    await fireEvent.press(
+      screen.getByRole('button', { name: 'Pagar no cartão (opcional): Sem cartão' }),
+    );
+    await fireEvent.press(screen.getByRole('radio', { name: 'Nubank' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Salvar gasto' }));
+
+    await waitFor(() => expect(bff.corpos).toHaveLength(1));
+    expect(bff.corpos[0]).toMatchObject({ categoriaId: 'aluguel', cartaoId: nubank.id });
   });
 
   it('gasto fixo recorrente, sem descrição (spec, "Gasto fixo recorrente")', async () => {
@@ -339,8 +406,9 @@ describe('GastoForm', () => {
         HttpResponse.json({
           categorias: {
             ...categorias,
-            CARTAO: [...categorias.CARTAO, { ...lazer, id: 'de-outro', nome: 'Velha' }],
+            FIXO: [...categorias.FIXO, { ...aluguel, id: 'de-outro', nome: 'Velha' }],
           },
+          cartoes,
         }),
       ),
       ...bff.handlers,
@@ -413,5 +481,42 @@ describe('GastoForm', () => {
     expect(await screen.findByRole('header', { name: 'Novo gasto' })).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: 'Excluir gasto' })).toBeNull();
     expect(screen.getByLabelText('Data').props.value).toMatch(/^\d{2}\/\d{2}\/\d{4}$/);
+  });
+});
+
+describe('GastosView por cartão', () => {
+  it('filtra por cartão e mostra o cartão no item (spec, "Filtro por cartão")', async () => {
+    const bff = bffDeLista([almoco, cinema, aluguelNov]);
+    server.use(bff.handler);
+    await renderizar(<GastosView onNovo={jest.fn()} onAbrir={jest.fn()} mesInicial="2026-11" />);
+
+    await screen.findByText('Almoço');
+    expect(screen.getByText('Lazer · Nubank')).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Cartão: Todos os cartões' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Nubank' }));
+    await waitFor(() => expect(bff.pedidos.at(-1)!.get('cartaoId')).toBe(nubank.id));
+    await waitFor(() => expect(screen.queryByText('Almoço')).toBeNull());
+    expect(screen.getByText('Lazer · Nubank')).toBeOnTheScreen();
+  });
+
+  it('"Sem cartão" e o cartão vindo da aba Cartões (spec, "Detalhe do cartão")', async () => {
+    const bff = bffDeLista([almoco, cinema, aluguelNov]);
+    server.use(bff.handler);
+    await renderizar(
+      <GastosView
+        onNovo={jest.fn()}
+        onAbrir={jest.fn()}
+        mesInicial="2026-11"
+        cartaoInicial={nubank.id}
+      />,
+    );
+    expect(await screen.findByText('Lazer · Nubank')).toBeOnTheScreen();
+    expect(bff.pedidos[0]!.get('cartaoId')).toBe(nubank.id);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Cartão: Nubank' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Sem cartão' }));
+    await waitFor(() => expect(bff.pedidos.at(-1)!.get('cartaoId')).toBe('SEM_CARTAO'));
+    expect(await screen.findByText('Almoço')).toBeOnTheScreen();
   });
 });

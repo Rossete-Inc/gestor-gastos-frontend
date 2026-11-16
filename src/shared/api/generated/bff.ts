@@ -24,7 +24,7 @@
  * - **Isolamento:** o usuário é sempre o do token. Recurso de outro usuário
  *   responde 404, como se não existisse.
  *
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.2.0
  */
 import { httpMutator } from '../http';
 export interface FieldError {
@@ -179,19 +179,50 @@ export interface GastoIn {
   descricao?: string;
   /** Só informativo no MVP */
   recorrente?: boolean;
+  /**
+     * Cartão ativo do usuário. Obrigatório para categoria do grupo `CARTAO`; opcional para `FIXO`.
+     * @minLength 1
+     * @maxLength 64
+     */
+  cartaoId?: string;
+}
+
+export interface CartaoResumo {
+  id: string;
+  apelido: string;
+  cor: Cor;
 }
 
 /**
- * Gasto com a categoria já resolvida (nome e cor).
+ * Gasto com a categoria e o cartão já resolvidos (nome e cor).
  */
 export interface Gasto {
   id: string;
   valorCentavos: number;
   data: Data;
+  mesReferencia: Mes;
   grupo: Grupo;
   categoria: CategoriaResumo;
+  cartao?: CartaoResumo;
   descricao?: string;
   recorrente: boolean;
+}
+
+/**
+ * Dia do mês; um dia que não existe no mês vale como o último dia.
+ * @minimum 1
+ * @maximum 31
+ */
+export type DiaDoMes = number;
+
+export interface Cartao {
+  id: string;
+  apelido: string;
+  cor: Cor;
+  diaFechamento: DiaDoMes;
+  diaVencimento: DiaDoMes;
+  limiteCentavos: Centavos;
+  arquivado: boolean;
 }
 
 export interface TelaGastos {
@@ -199,18 +230,32 @@ export interface TelaGastos {
   itens: Gasto[];
   nextCursor?: string;
   categorias: CategoriasPorGrupo;
+  /** Todos os cartões, ativos e arquivados, para o filtro. */
+  cartoes?: Cartao[];
 }
 
 export interface TelaGastoForm {
   categorias: CategoriasPorGrupo;
+  /** Cartões ativos, mais o cartão arquivado do gasto em edição. */
+  cartoes: Cartao[];
   gasto?: Gasto;
 }
 
+export interface ParteFatia {
+  rotulo: string;
+  cor?: Cor;
+  totalCentavos: Centavos;
+}
+
 /**
- * Fatia da pizza. Categorias trazem `categoriaId` e `cor`; grupos trazem `grupo`.
+ * Fatia da pizza. Categorias trazem `categoriaId`, `grupo` e `cor`;
+ * grupos trazem `grupo`; cartões trazem `cartaoId` (ausente na fatia
+ * "Sem cartão") e `cor`. `detalhe` divide o valor da fatia: por cartão
+ * nas visões de categoria e de grupo, por grupo na visão de cartões.
  */
 export interface Fatia {
   categoriaId?: string;
+  cartaoId?: string;
   grupo?: Grupo;
   nome: string;
   cor?: Cor;
@@ -221,6 +266,18 @@ export interface Fatia {
      * @maximum 1000
      */
   percentualDecimos: number;
+  /** Partes da fatia, do maior valor para o menor; a soma é o total da fatia. */
+  detalhe: ParteFatia[];
+}
+
+/**
+ * Total de um cartão no mês. Sem `cartaoId` = "Sem cartão".
+ */
+export interface TotalCartao {
+  cartaoId?: string;
+  nome: string;
+  cor?: Cor;
+  totalCentavos: Centavos;
 }
 
 export interface TotalGrupo {
@@ -236,6 +293,7 @@ export type TelaDashboardPizza = {
   CARTAO: Fatia[];
   FIXO: Fatia[];
   grupos: Fatia[];
+  cartoes: Fatia[];
 };
 
 export interface TelaDashboard {
@@ -247,6 +305,8 @@ export interface TelaDashboard {
      * @maxItems 2
      */
   totaisPorGrupo: TotalGrupo[];
+  /** Cartões com gasto no mês e "Sem cartão", do maior para o menor; a soma é igual a totalCentavos. */
+  totaisPorCartao: TotalCartao[];
   /** Fatias em ordem decrescente de valor. Listas vazias no mês sem gastos. */
   pizza: TelaDashboardPizza;
   /**
@@ -254,6 +314,47 @@ export interface TelaDashboard {
      * @maxItems 5
      */
   ultimos: Gasto[];
+}
+
+export interface CartaoIn {
+  /**
+     * @minLength 1
+     * @maxLength 40
+     */
+  apelido: string;
+  cor: Cor;
+  diaFechamento: DiaDoMes;
+  diaVencimento: DiaDoMes;
+  /**
+     * @minimum 1
+     * @maximum 100000000
+     */
+  limiteCentavos: number;
+}
+
+export interface CartaoPatch {
+  /** true arquiva; false reativa */
+  arquivado: boolean;
+}
+
+export interface ListaCartoes {
+  itens: Cartao[];
+}
+
+export interface ResumoCartao {
+  cartao: Cartao;
+  faturaCentavos: Centavos;
+  vencimento: Data;
+  limiteUsadoCentavos: Centavos;
+  /** Limite menos o usado; pode ser negativo. */
+  limiteDisponivelCentavos: number;
+}
+
+export interface TelaCartoes {
+  mes: Mes;
+  hoje: Data;
+  /** Na ordem de apelido; ativos e arquivados. */
+  cartoes: ResumoCartao[];
 }
 
 /**
@@ -319,6 +420,12 @@ export type ObterTelaGastosParams = {
    */
   categoriaId?: string;
   /**
+   * ID do cartão, ou `SEM_CARTAO` para os gastos sem cartão.
+   * @minLength 1
+   * @maxLength 64
+   */
+  cartaoId?: string;
+  /**
    * Valor de `nextCursor` da página anterior.
    * @minLength 1
    * @maxLength 2048
@@ -338,6 +445,14 @@ export type ObterTelaGastoFormParams = {
    * @maxLength 64
    */
   id?: string;
+};
+
+export type ObterTelaCartoesParams = {
+  /**
+   * Mês no formato AAAA-MM. O app envia o mês corrente no fuso do dispositivo.
+   * @pattern ^\d{4}-(0[1-9]|1[0-2])$
+   */
+  mes: MesParameter;
 };
 
 export type ObterTelaAdminUsuariosParams = {
@@ -398,9 +513,11 @@ export const getObterTelaDashboardUrl = (params: ObterTelaDashboardParams,) => {
 }
 
 /**
- * Totais do mês e por grupo, fatias da pizza nas quatro visões (todas as
- * categorias, só `CARTAO`, só `FIXO` e por grupo) e os 5 gastos mais
- * recentes. Mês sem gastos devolve totais zerados e listas vazias.
+ * Totais do mês de referência, por grupo e por cartão; fatias da pizza
+ * nas cinco visões (todas as categorias, só `CARTAO`, só `FIXO`, por
+ * grupo e por cartão), cada uma com o detalhe da fatia; e os 5 gastos
+ * mais recentes. Gasto de cartão conta no mês da fatura. Mês sem gastos
+ * devolve totais zerados e listas vazias.
  * @summary Painel do mês
  */
 export const obterTelaDashboard = async (params: ObterTelaDashboardParams, options?: Parameters<typeof httpMutator>[1]): Promise<TelaDashboard> => {
@@ -432,9 +549,10 @@ export const getObterTelaGastosUrl = (params: ObterTelaGastosParams,) => {
 }
 
 /**
- * Gastos do mês, do mais recente para o mais antigo, com filtros
- * opcionais por grupo e categoria e paginação por cursor. Traz também
- * as categorias visíveis, para montar os filtros.
+ * Gastos do mês de referência, do mais recente para o mais antigo, com
+ * filtros opcionais por grupo, categoria e cartão e paginação por
+ * cursor. Traz também as categorias visíveis e os cartões (ativos e
+ * arquivados), para montar os filtros.
  * @summary Lista de gastos do mês
  */
 export const obterTelaGastos = async (params: ObterTelaGastosParams, options?: Parameters<typeof httpMutator>[1]): Promise<TelaGastos> => {
@@ -466,9 +584,10 @@ export const getObterTelaGastoFormUrl = (params?: ObterTelaGastoFormParams,) => 
 }
 
 /**
- * Categorias visíveis agrupadas por grupo. Com `id`, devolve também o
- * gasto para a tela de edição; gasto inexistente ou de outro usuário
- * responde 404.
+ * Categorias visíveis agrupadas por grupo e cartões ativos. Com `id`,
+ * devolve também o gasto para a tela de edição (e, se o cartão dele
+ * estiver arquivado, inclui esse cartão na lista); gasto inexistente ou
+ * de outro usuário responde 404.
  * @summary Dados do formulário de gasto
  */
 export const obterTelaGastoForm = async (params?: ObterTelaGastoFormParams, options?: Parameters<typeof httpMutator>[1]): Promise<TelaGastoForm> => {
@@ -493,7 +612,9 @@ export const getCriarGastoUrl = () => {
 }
 
 /**
- * O grupo do gasto é o grupo da categoria escolhida.
+ * O grupo do gasto é o grupo da categoria escolhida. Categoria do grupo
+ * `CARTAO` exige `cartaoId`; `FIXO` aceita cartão opcional. Com cartão,
+ * o gasto entra no mês da fatura (`mesReferencia`).
  * @summary Lançar gasto
  */
 export const criarGasto = async (gastoIn: GastoIn, options?: Parameters<typeof httpMutator>[1]): Promise<Gasto> => {
@@ -532,7 +653,9 @@ export const getAtualizarGastoUrl = (id: string,) => {
 }
 
 /**
- * Mesmas validações do lançamento. Trocar a categoria pode trocar o grupo.
+ * Mesmas validações do lançamento. Trocar a categoria pode trocar o
+ * grupo; trocar a data ou o cartão recalcula o mês de referência e pode
+ * mudar o `id` do gasto. Manter o cartão atual vale mesmo arquivado.
  * @summary Editar gasto
  */
 export const atualizarGasto = async (id: string,
@@ -664,6 +787,208 @@ export const getExcluirCategoriaUrl = (id: string,) => {
 export const excluirCategoria = async (id: string, options?: Parameters<typeof httpMutator>[1]): Promise<void> => {
 
   return httpMutator<void>(getExcluirCategoriaUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+export const getObterTelaCartoesUrl = (params: ObterTelaCartoesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/telas/cartoes?${stringifiedParams}` : `/telas/cartoes`
+}
+
+/**
+ * Todos os cartões (ativos e arquivados) com o total da fatura do mês
+ * pedido, o vencimento dela e o limite usado e disponível hoje. O limite
+ * usado soma as faturas que ainda não venceram, inclusive as futuras.
+ * @summary Cartões com a fatura do mês e o limite
+ */
+export const obterTelaCartoes = async (params: ObterTelaCartoesParams, options?: Parameters<typeof httpMutator>[1]): Promise<TelaCartoes> => {
+
+  return httpMutator<TelaCartoes>(getObterTelaCartoesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export const getListarCartoesUrl = () => {
+
+
+
+
+  return `/cartoes`
+}
+
+/**
+ * Ativos e arquivados, em ordem de apelido.
+ * @summary Cartões do usuário
+ */
+export const listarCartoes = async ( options?: Parameters<typeof httpMutator>[1]): Promise<ListaCartoes> => {
+
+  return httpMutator<ListaCartoes>(getListarCartoesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export const getCriarCartaoUrl = () => {
+
+
+
+
+  return `/cartoes`
+}
+
+/**
+ * Apelido único entre os cartões ativos; no máximo 20 ativos.
+ * @summary Cadastrar cartão
+ */
+export const criarCartao = async (cartaoIn: CartaoIn, options?: Parameters<typeof httpMutator>[1]): Promise<Cartao> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return httpMutator<Cartao>(getCriarCartaoUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(cartaoIn)
+  }
+);}
+
+
+
+export const getAtualizarCartaoUrl = (id: string,) => {
+
+
+
+
+  return `/cartoes/${id}`
+}
+
+/**
+ * Mudar os dias não recalcula os gastos já lançados.
+ * @summary Editar cartão
+ */
+export const atualizarCartao = async (id: string,
+    cartaoIn: CartaoIn, options?: Parameters<typeof httpMutator>[1]): Promise<Cartao> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return httpMutator<Cartao>(getAtualizarCartaoUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(cartaoIn)
+  }
+);}
+
+
+
+export const getArquivarCartaoUrl = (id: string,) => {
+
+
+
+
+  return `/cartoes/${id}`
+}
+
+/**
+ * Arquivado some do formulário de gasto; os gastos continuam nos totais.
+ * @summary Arquivar ou reativar cartão
+ */
+export const arquivarCartao = async (id: string,
+    cartaoPatch: CartaoPatch, options?: Parameters<typeof httpMutator>[1]): Promise<Cartao> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return httpMutator<Cartao>(getArquivarCartaoUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(cartaoPatch)
+  }
+);}
+
+
+
+export const getExcluirCartaoUrl = (id: string,) => {
+
+
+
+
+  return `/cartoes/${id}`
+}
+
+/**
+ * @summary Excluir cartão sem gastos
+ */
+export const excluirCartao = async (id: string, options?: Parameters<typeof httpMutator>[1]): Promise<void> => {
+
+  return httpMutator<void>(getExcluirCartaoUrl(id),
   {
     ...options,
     method: 'DELETE'

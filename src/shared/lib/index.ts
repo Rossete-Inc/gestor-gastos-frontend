@@ -10,3 +10,4 @@ export {
   somarMeses,
 } from './datas';
 export { MAX_CENTAVOS, centavosAposEdicao, centavosDeDigitos, formatarCentavos } from './moeda';
+export { mesDaFatura, rotuloCurtoDoMes } from './fatura';
