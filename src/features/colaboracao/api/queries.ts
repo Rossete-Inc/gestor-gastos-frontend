@@ -43,10 +43,15 @@ export function useTrocarConta() {
   };
 }
 
-/** Membros e convites pendentes da própria conta (só o dono). */
+/**
+ * Membros e convites pendentes da própria conta (só o dono). Busca de novo a
+ * cada abertura da tela: o aceite acontece no aparelho de outra pessoa, e o
+ * cache de 30 s mostraria o convite ainda pendente.
+ */
 export function useColaboradores() {
   return useQuery({
     queryKey: colaboracaoKeys.colaboradores(),
+    refetchOnMount: 'always',
     queryFn: async () =>
       bffSchemas.ListarColaboradoresResponse.parse(await bff.listarColaboradores()),
   });
