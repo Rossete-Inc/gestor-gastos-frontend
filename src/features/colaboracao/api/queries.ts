@@ -96,8 +96,13 @@ export function useCancelarConvite() {
   });
 }
 
-/** Aceita o convite e passa a trabalhar na conta do dono. */
-export function useAceitarConvite() {
+/**
+ * Aceita o convite e passa a trabalhar na conta do dono. O `onAceito` fica
+ * aqui, e não no `mutate`: a troca de conta recomeça o cache, a tela que
+ * chamou pode desmontar (vira "Carregando") e o TanStack Query descarta os
+ * callbacks do `mutate` de quem desmontou.
+ */
+export function useAceitarConvite(onAceito?: () => void) {
   const invalidar = useInvalidar();
   const trocar = useTrocarConta();
   return useMutation({
@@ -107,6 +112,7 @@ export function useAceitarConvite() {
       if (conta.papel === 'EDITOR' || conta.papel === 'LEITOR') {
         await trocar({ donoId: conta.donoId, nomeDono: conta.nomeDono, papel: conta.papel });
       }
+      onAceito?.();
     },
   });
 }
@@ -119,14 +125,19 @@ export function useRecusarConvite() {
   });
 }
 
-/** Sai da conta ativa (alheia) e volta para a própria. */
-export function useSairDaConta() {
+/**
+ * Sai da conta ativa (alheia) e volta para a própria. O `onSaiu` fica aqui
+ * pelo mesmo motivo de useAceitarConvite: o Perfil vira "Carregando" quando o
+ * cache recomeça, e o callback do `mutate` se perderia.
+ */
+export function useSairDaConta(onSaiu?: () => void) {
   const invalidar = useInvalidar();
   const trocar = useTrocarConta();
   return useMutation({
     mutationFn: (donoId: string) => bff.sairDaConta(donoId),
     onSuccess: async () => {
       await trocar(null);
+      onSaiu?.();
       await invalidar();
     },
   });

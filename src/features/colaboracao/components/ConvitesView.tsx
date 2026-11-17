@@ -17,7 +17,7 @@ type Props = {
 // convites pendentes para o e-mail da conta, sem notificação por e-mail.
 export function ConvitesView({ onVoltar, onAceito }: Props) {
   const contas = useContas();
-  const aceitar = useAceitarConvite();
+  const aceitar = useAceitarConvite(onAceito);
   const recusar = useRecusarConvite();
   const [respondendo, setRespondendo] = useState<string | null>(null);
 
@@ -69,10 +69,7 @@ export function ConvitesView({ onVoltar, onAceito }: Props) {
                   disabled={respondendo !== null}
                   onPress={() => {
                     setRespondendo(c.donoId);
-                    aceitar.mutate(c.donoId, {
-                      onSuccess: onAceito,
-                      onSettled: () => setRespondendo(null),
-                    });
+                    aceitar.mutate(c.donoId, { onSettled: () => setRespondendo(null) });
                   }}
                 />
                 <Button
