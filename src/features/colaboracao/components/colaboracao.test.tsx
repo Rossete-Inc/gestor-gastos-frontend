@@ -1,5 +1,7 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { useQuery } from '@tanstack/react-query';
 import { http, HttpResponse } from 'msw';
+import { Text } from 'react-native';
 
 import { bff, configurarConta } from '@/shared/api';
 
@@ -413,6 +415,29 @@ describe('AcoesDaConta', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Sair da conta' }));
     await waitFor(() => expect(acoes.onSaiu).toHaveBeenCalled());
     expect(saiu).toBe(true);
+    expect(contaAtiva.obter().conta).toBeNull();
+  });
+
+  it('avisa que saiu mesmo se a tela desmontar com o cache recomeçando (Perfil em "Carregando")', async () => {
+    await act(() => contaAtiva.escolher(daAna));
+    server.use(
+      contas([daAna]),
+      http.delete(`${BFF}/contas/ana/participacao`, () => new HttpResponse(null, { status: 204 })),
+    );
+    const onSaiu = jest.fn();
+    // Como o PerfilView: enquanto a consulta carrega, só "Carregando".
+    function ComoOPerfil() {
+      const perfil = useQuery({
+        queryKey: ['perfil-de-teste'],
+        queryFn: () => new Promise<string>((ok) => setTimeout(() => ok('ok'), 50)),
+      });
+      if (perfil.isPending) return <Text>Carregando</Text>;
+      return <AcoesDaConta {...acoes} onSaiu={onSaiu} />;
+    }
+    await renderizar(<ComoOPerfil />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Sair da conta de Ana' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Sair da conta' }));
+    await waitFor(() => expect(onSaiu).toHaveBeenCalled());
     expect(contaAtiva.obter().conta).toBeNull();
   });
 

@@ -19,7 +19,7 @@ type Props = {
 export function AcoesDaConta({ onColaboradores, onConvites, onSaiu }: Props) {
   const ativa = useContaAtiva();
   const contas = useContas();
-  const sair = useSairDaConta();
+  const sair = useSairDaConta(onSaiu);
   const [confirmando, setConfirmando] = useState(false);
   const convites = contas.data?.convites.length ?? 0;
 
@@ -54,10 +54,7 @@ export function AcoesDaConta({ onColaboradores, onConvites, onSaiu }: Props) {
         onConfirm={() => {
           const donoId = ativa.conta?.donoId;
           if (!donoId) return;
-          sair.mutate(donoId, {
-            onSuccess: onSaiu,
-            onSettled: () => setConfirmando(false),
-          });
+          sair.mutate(donoId, { onSettled: () => setConfirmando(false) });
         }}
         onCancel={() => setConfirmando(false)}
       />
