@@ -26,6 +26,7 @@ export function useTelaGastos(f: FiltrosGastos) {
           ...(f.grupo ? { grupo: f.grupo } : {}),
           ...(f.categoriaId ? { categoriaId: f.categoriaId } : {}),
           ...(f.cartaoId ? { cartaoId: f.cartaoId } : {}),
+          ...(f.autorId ? { autorId: f.autorId } : {}),
           ...(pageParam ? { cursor: pageParam } : {}),
         }),
       ),

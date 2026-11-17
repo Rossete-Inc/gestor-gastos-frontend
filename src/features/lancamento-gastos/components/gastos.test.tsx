@@ -173,7 +173,7 @@ describe('GastosView', () => {
     await fireEvent.press(screen.getByRole('radio', { name: 'Lazer' }));
     await waitFor(() => expect(bff.pedidos.at(-1)!.get('categoriaId')).toBe('lazer'));
     await waitFor(() => expect(screen.queryByText('Almoço')).toBeNull());
-    expect(screen.getByText('R$ 64,00')).toBeOnTheScreen();
+    expect(await screen.findByText('R$ 64,00')).toBeOnTheScreen();
   });
 
   it('troca de mês', async () => {
@@ -675,7 +675,8 @@ describe('GastosView por cartão', () => {
     await fireEvent.press(screen.getByRole('radio', { name: 'Nubank' }));
     await waitFor(() => expect(bff.pedidos.at(-1)!.get('cartaoId')).toBe(nubank.id));
     await waitFor(() => expect(screen.queryByText('Almoço')).toBeNull());
-    expect(screen.getByText('Lazer · Nubank')).toBeOnTheScreen();
+    // Entre um filtro e outro a lista recarrega: espera o item voltar.
+    expect(await screen.findByText('Lazer · Nubank')).toBeOnTheScreen();
   });
 
   it('"Sem cartão" e o cartão vindo da aba Cartões (spec, "Detalhe do cartão")', async () => {
@@ -696,5 +697,79 @@ describe('GastosView por cartão', () => {
     await fireEvent.press(screen.getByRole('radio', { name: 'Sem cartão' }));
     await waitFor(() => expect(bff.pedidos.at(-1)!.get('cartaoId')).toBe('SEM_CARTAO'));
     expect(await screen.findByText('Almoço')).toBeOnTheScreen();
+  });
+});
+
+describe('GastosView na conta compartilhada (colaboradores)', () => {
+  const ana = { id: 'ana', nome: 'Ana' };
+  const brunoP = { id: 'u-1', nome: 'Bruno' };
+
+  function bffComAutoria() {
+    const pedidos: URLSearchParams[] = [];
+    return {
+      pedidos,
+      handlers: [
+        http.get(`${BFF}/contas`, () =>
+          HttpResponse.json({
+            contas: [{ donoId: 'u-1', nomeDono: 'Bruno', papel: 'DONO' }],
+            convites: [],
+          }),
+        ),
+        http.get(`${BFF}/telas/gastos`, ({ request }) => {
+          const q = new URL(request.url).searchParams;
+          pedidos.push(q);
+          const itens = [
+            { ...almoco, lancadoPor: ana },
+            { ...cinema, lancadoPor: brunoP },
+          ].filter((g) => !q.get('autorId') || g.lancadoPor.id === q.get('autorId'));
+          return HttpResponse.json({
+            mes: q.get('mes'),
+            itens,
+            categorias,
+            cartoes,
+            pessoas: [ana, brunoP],
+          });
+        }),
+      ],
+    };
+  }
+
+  it('mostra "por Ana" nos gastos de outra pessoa e filtra por pessoa (spec colaboracao)', async () => {
+    const b = bffComAutoria();
+    server.use(...b.handlers);
+    await renderizar(<GastosView onNovo={jest.fn()} onAbrir={jest.fn()} mesInicial="2026-11" />);
+
+    expect(await screen.findByText('Alimentação · por Ana')).toBeOnTheScreen();
+    // O próprio usuário não aparece como autor.
+    expect(screen.getByText('Lazer · Nubank')).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Pessoa: Todas as pessoas' }));
+    expect(screen.getByText('Bruno (você)')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByText('Ana'));
+    await waitFor(() => expect(b.pedidos.at(-1)!.get('autorId')).toBe('ana'));
+    await waitFor(() => expect(screen.queryByText('Lazer · Nubank')).toBeNull());
+    expect(screen.getByRole('button', { name: 'Pessoa: Ana' })).toBeOnTheScreen();
+  });
+
+  it('sem colaboradores, não mostra o filtro de pessoa', async () => {
+    server.use(bffDeLista([almoco]).handler);
+    await renderizar(<GastosView onNovo={jest.fn()} onAbrir={jest.fn()} mesInicial="2026-11" />);
+    expect(await screen.findByText('Almoço')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: /^Pessoa:/ })).toBeNull();
+  });
+
+  it('modo Leitor: sem lançar e sem abrir os gastos (spec, "Leitor tenta lançar")', async () => {
+    server.use(bffDeLista([almoco]).handler);
+    await renderizar(<GastosView mesInicial="2026-11" />);
+    expect(await screen.findByText('Almoço')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Novo gasto' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Almoço/ })).toBeNull();
+  });
+
+  it('modo Leitor no mês vazio: sem o atalho para lançar', async () => {
+    server.use(bffDeLista([]).handler);
+    await renderizar(<GastosView mesInicial="2026-11" />);
+    expect(await screen.findByText('Nenhum gasto em novembro de 2026.')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Lançar gasto' })).toBeNull();
   });
 });

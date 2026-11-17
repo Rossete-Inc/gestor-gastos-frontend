@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 
 import { bff } from './index';
-import { ApiError, configurarAutenticacao, type Autenticacao } from './http';
+import { ApiError, configurarAutenticacao, configurarConta, type Autenticacao } from './http';
 
 // MSW é o WireMock do front: intercepta o fetch e responde como o BFF.
 const BFF = 'http://bff.test';
@@ -32,6 +32,7 @@ beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 afterEach(() => {
   server.resetHandlers();
   configurarAutenticacao(null);
+  configurarConta(null);
 });
 afterAll(() => server.close());
 
@@ -167,5 +168,58 @@ describe('httpMutator', () => {
   it('falha de rede vira sem_conexao', async () => {
     server.use(http.get(`${BFF}/me`, () => HttpResponse.error()));
     await expect(bff.obterMe()).rejects.toMatchObject({ status: 0, code: 'sem_conexao' });
+  });
+});
+
+describe('conta ativa (X-Conta)', () => {
+  function contaFalsa(donoId: string | null) {
+    const perdidas: string[] = [];
+    configurarConta({ obterConta: () => donoId, aoPerderConta: (d) => perdidas.push(d) });
+    return perdidas;
+  }
+
+  it('manda o donoId da conta alheia no X-Conta', async () => {
+    contaFalsa('ana');
+    let recebido: string | null = null;
+    server.use(
+      http.get(`${BFF}/cartoes`, ({ request }) => {
+        recebido = request.headers.get('X-Conta');
+        return HttpResponse.json({ itens: [] });
+      }),
+    );
+    await bff.listarCartoes();
+    expect(recebido).toBe('ana');
+  });
+
+  it('na própria conta, não manda o cabeçalho', async () => {
+    contaFalsa(null);
+    let tem = true;
+    server.use(
+      http.get(`${BFF}/cartoes`, ({ request }) => {
+        tem = request.headers.has('X-Conta');
+        return HttpResponse.json({ itens: [] });
+      }),
+    );
+    await bff.listarCartoes();
+    expect(tem).toBe(false);
+  });
+
+  it('404 conta_nao_encontrada avisa que o acesso terminou', async () => {
+    const perdidas = contaFalsa('ana');
+    server.use(http.get(`${BFF}/cartoes`, () => problema(404, 'conta_nao_encontrada')));
+    await expect(bff.listarCartoes()).rejects.toMatchObject({ code: 'conta_nao_encontrada' });
+    expect(perdidas).toEqual(['ana']);
+  });
+
+  it('outro 404, ou o 404 da própria conta, não mexe na conta', async () => {
+    const perdidas = contaFalsa('ana');
+    server.use(http.delete(`${BFF}/cartoes/k-1`, () => problema(404, 'cartao_nao_encontrado')));
+    await expect(bff.excluirCartao('k-1')).rejects.toBeInstanceOf(ApiError);
+    expect(perdidas).toEqual([]);
+
+    const daPropria = contaFalsa(null);
+    server.use(http.get(`${BFF}/cartoes`, () => problema(404, 'conta_nao_encontrada')));
+    await expect(bff.listarCartoes()).rejects.toBeInstanceOf(ApiError);
+    expect(daPropria).toEqual([]);
   });
 });

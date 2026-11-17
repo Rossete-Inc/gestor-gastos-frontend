@@ -58,7 +58,23 @@ export const FILTROS_DE_GRUPO = [
 ] as const satisfies readonly { valor: FiltroGrupo; label: string }[];
 
 /** Filtros da lista de gastos. Vazio = sem filtro; cartaoId aceita SEM_CARTAO. */
-export type FiltrosGastos = { mes: string; grupo?: Grupo; categoriaId?: string; cartaoId?: string };
+export type FiltrosGastos = {
+  mes: string;
+  grupo?: Grupo;
+  categoriaId?: string;
+  cartaoId?: string;
+  /** Quem lançou (colaboradores). */
+  autorId?: string;
+};
+
+/**
+ * "por Bruno" na lista quando quem lançou não é o próprio usuário (spec
+ * colaboracao, "Autoria dos lançamentos"). Sem autoria, nada.
+ */
+export function autoria(g: Pick<Gasto, 'lancadoPor'>, meuId: string | undefined): string | null {
+  if (!g.lancadoPor || g.lancadoPor.id === meuId) return null;
+  return `por ${g.lancadoPor.nome}`;
+}
 
 // Validação no cliente para responder rápido. A regra final (inclusive a
 // categoria existir e ser do usuário) é do BFF e do expenses-service.

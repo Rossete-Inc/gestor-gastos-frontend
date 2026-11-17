@@ -1,4 +1,5 @@
 export { secureStorage } from './secureStorage';
+export { preferencias } from './preferencias';
 export type { SecureStorage } from './secureStorage';
 export { bytesAleatorios } from './aleatorio';
 export { assinarConexao, estaOnline, registrarServiceWorker } from './pwa';

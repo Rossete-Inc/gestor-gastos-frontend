@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { useSair } from '@/features/auth';
@@ -16,11 +17,13 @@ type Props = {
   onUsuarios: () => void;
   /** Abre a troca de senha (spec autenticacao, "Acesso pelo perfil"). */
   onAlterarSenha: () => void;
+  /** Itens da conta compartilhada (colaboradores, convites, sair da conta). */
+  acoesDaConta?: ReactNode;
 };
 
 // Tela Perfil (spec gestao-usuarios, "Ver perfil"): nome, e-mail, papel e
 // data de criação, com a ação de sair.
-export function PerfilView({ onCategorias, onUsuarios, onAlterarSenha }: Props) {
+export function PerfilView({ onCategorias, onUsuarios, onAlterarSenha, acoesDaConta }: Props) {
   const perfil = usePerfil();
   const sair = useSair();
 
@@ -60,6 +63,7 @@ export function PerfilView({ onCategorias, onUsuarios, onAlterarSenha }: Props) 
       {perfil.data?.papel === 'admin' && (
         <MenuItem label="Usuários" icon="users" onPress={onUsuarios} />
       )}
+      {acoesDaConta}
       <MenuItem label="Alterar senha" icon="lock" onPress={onAlterarSenha} />
       <MenuItem label="Sair" icon="log-out" danger onPress={() => sair.mutate()} />
     </Screen>

@@ -76,6 +76,7 @@ As telas usam só os componentes e os `tokens` de `shared/ui`; nenhuma cor ou me
 - **Contrato:** `openapi/bff.yaml` é uma cópia fixada do contrato do BFF. O `npm run api:gerar` (orval) gera em `src/shared/api/generated` as funções de fetch, os tipos e os schemas Zod. Os arquivos gerados nunca são editados à mão, e a esteira falha se estiverem desatualizados.
 - **Chamadas:** passam pelo `httpMutator`, que põe o token, lança `ApiError` com o problem+json já lido (`status`, `code`, `detail`, `errors`) e trata o 401: renova a sessão uma única vez, mesmo com várias chamadas simultâneas, repete a chamada e, se não der, encerra a sessão.
 - **Autenticação:** a feature de sessão se pluga com `configurarAutenticacao`, porque o `shared` não conhece features.
+- **Conta ativa:** a feature de colaboração se pluga com `configurarConta`. Numa conta alheia, toda chamada leva o cabeçalho `X-Conta`, e um 404 `conta_nao_encontrada` avisa que o acesso terminou.
 - **Cache:** o `queryClient` do TanStack Query não repete erros 4xx e não repete mutações.
 
 ## Autenticação (`src/features/auth`) e Perfil (`src/features/perfil`)
@@ -111,6 +112,22 @@ Usuários de teste do ambiente local: os do seed do infra-base (`docs/local.md`)
 - **Papel novo:** vale a partir do próximo login. Quem acabou de virar admin vê o item, mas a lista responde 403 até sair e entrar de novo, e a tela explica isso.
 - **Regras:** a tela não oferece bloquear nem excluir a própria conta, nem ações em contas excluídas ou pendentes. O resto (último admin, transições) vem do users-service, e cada código de erro tem a sua mensagem.
 - **Confirmação:** toda ação pede confirmação; bloquear e excluir com o botão vermelho. Depois de qualquer resposta, a lista e o próprio perfil são recarregados.
+
+## Colaboradores (`src/features/colaboracao`)
+
+Change `colaboradores` (ADR 0010): o dono convida pessoas por e-mail como Editor ou Leitor, e quem aceita alterna entre a própria conta e as contas em que colabora.
+
+| Rota             | Tela                                                                                      |
+| ---------------- | ----------------------------------------------------------------------------------------- |
+| `/colaboradores` | Só na própria conta: membros e convites (até 5), convidar, mudar papel, remover, cancelar |
+| `/convites`      | Convites recebidos: aceitar (a conta do dono fica ativa) ou recusar                       |
+
+- **Conta ativa:** fica num store com assinantes (`model/contaAtiva.ts`, o mesmo padrão da sessão), guardado no dispositivo por `shared/platform/preferencias` (localStorage na web, expo-secure-store no nativo). Só o `donoId`, o nome e o papel; nada sensível. O logout volta para a própria conta.
+- **Troca de conta:** pelo seletor abaixo do título das abas (`BarraDaConta`, via `TopoDaTela`), que só aparece com mais de uma conta. A troca recomeça o cache do TanStack Query e leva ao painel.
+- **Acesso perdido:** o 404 `conta_nao_encontrada`, ou a conta que sumiu de `/contas`, volta para a própria conta com um aviso. O papel mudado pelo dono vale quando `/contas` é lido de novo.
+- **Modo Leitor:** as rotas das abas passam as ações de escrita só se `usePodeEscrever()`; sem elas, as telas não mostram o FAB, a edição de cartões, a exclusão de categorias nem abrem os gastos. Quem decide é o BFF (403 `somente_leitura`).
+- **Autoria:** a lista de gastos mostra "por Ana" quando quem lançou não é o usuário e ganha o filtro "Pessoa" quando a conta tem colaboradores.
+- **Perfil:** "Colaboradores" (só na própria conta), "Convites" e "Sair da conta de …" (numa conta alheia).
 
 ## Testes
 

@@ -5,12 +5,14 @@ import {
   Badge,
   Banner,
   Button,
+  ExpenseItem,
   Header,
   MenuItem,
   PieChart,
   Screen,
   Text,
   TextField,
+  TopoDaTela,
 } from './index';
 
 describe('Button', () => {
@@ -112,6 +114,47 @@ describe('Header e Screen', () => {
     );
     expect(screen.getByRole('header', { name: 'Perfil' })).toBeOnTheScreen();
     expect(screen.getByText('conteúdo')).toBeOnTheScreen();
+  });
+  it('Screen com título mostra o TopoDaTela; sem título, não', async () => {
+    await render(
+      <TopoDaTela.Provider value={<Text>seletor</Text>}>
+        <Screen title="Painel">
+          <Text>conteúdo</Text>
+        </Screen>
+      </TopoDaTela.Provider>,
+    );
+    expect(screen.getByText('seletor')).toBeOnTheScreen();
+    await render(
+      <TopoDaTela.Provider value={<Text>seletor</Text>}>
+        <Screen centered>
+          <Text>login</Text>
+        </Screen>
+      </TopoDaTela.Provider>,
+    );
+    expect(screen.queryByText('seletor')).toBeNull();
+  });
+});
+
+describe('ExpenseItem', () => {
+  const base = {
+    titulo: 'Almoço',
+    detalhe: 'Alimentação',
+    valor: 'R$ 45,90',
+    cor: '#F97316',
+    icone: 'credit-card' as const,
+  };
+
+  it('com onPress é um botão', async () => {
+    const onPress = jest.fn();
+    await render(<ExpenseItem {...base} onPress={onPress} accessibilityHint="Abre" />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Almoço, Alimentação, R$ 45,90' }));
+    expect(onPress).toHaveBeenCalled();
+  });
+
+  it('sem onPress só mostra (modo Leitor)', async () => {
+    await render(<ExpenseItem {...base} accessibilityHint="Abre" />);
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.getByLabelText('Almoço, Alimentação, R$ 45,90')).toBeOnTheScreen();
   });
 });
 

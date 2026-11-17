@@ -23,8 +23,15 @@
  *   nos 422, `errors[]` por campo.
  * - **Isolamento:** o usuário é sempre o do token. Recurso de outro usuário
  *   responde 404, como se não existisse.
+ * - **Conta ativa (colaboradores):** as rotas de gastos, cartões,
+ *   categorias e telas aceitam o cabeçalho `X-Conta` com o `donoId` da
+ *   conta em que o usuário colabora. Sem ele, ou com o próprio ID, vale a
+ *   própria conta. Conta sem acesso responde 404 `conta_nao_encontrada`;
+ *   escrita de um colaborador `LEITOR` responde 403 `somente_leitura`. As
+ *   rotas `/colaboradores` são só do dono: com `X-Conta` alheio, 403
+ *   `somente_dono`.
  *
- * OpenAPI spec version: 0.3.0
+ * OpenAPI spec version: 0.4.0
  */
 import * as zod from 'zod';
 
@@ -57,6 +64,14 @@ export const obterTelaDashboardQueryMesRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-
 
 export const ObterTelaDashboardQueryParams = zod.object({
   "mes": zod.string().regex(obterTelaDashboardQueryMesRegExp).describe('Mês no formato AAAA-MM. O app envia o mês corrente no fuso do dispositivo.')
+})
+
+export const obterTelaDashboardHeaderXContaMax = 64;
+
+
+
+export const ObterTelaDashboardHeader = zod.object({
+  "X-Conta": zod.string().min(1).max(obterTelaDashboardHeaderXContaMax).optional().describe('`donoId` da conta ativa; ausente = a própria conta.')
 })
 
 export const obterTelaDashboardResponseMesRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
@@ -232,7 +247,15 @@ export const ObterTelaDashboardResponse = zod.object({
   "numero": zod.int().min(1),
   "total": zod.int().optional().describe('Total de parcelas; ausente na recorrência.'),
   "ajustado": zod.boolean().optional().describe('Editado com o alcance "só esta".')
-}).optional().describe('Posição do gasto num parcelamento ("3/10") ou numa recorrência.')
+}).optional().describe('Posição do gasto num parcelamento ("3/10") ou numa recorrência.'),
+  "lancadoPor": zod.object({
+  "id": zod.string(),
+  "nome": zod.string()
+}).describe('Autor de gasto ou membro da conta. Autor sem perfil aparece como "Ex-colaborador".').optional().describe('Quem lançou; os gastos anteriores aos colaboradores são do dono. Só na lista de gastos e na resposta do POST e do PUT.'),
+  "editadoPor": zod.object({
+  "id": zod.string(),
+  "nome": zod.string()
+}).describe('Autor de gasto ou membro da conta. Autor sem perfil aparece como "Ex-colaborador".').optional().describe('Quem editou por último; ausente se nunca foi editado depois dos colaboradores.')
 }).describe('Gasto com a categoria e o cartão já resolvidos (nome e cor).')).max(obterTelaDashboardResponseUltimosMax).describe('Até 5 gastos mais recentes do mês.')
 })
 
@@ -249,6 +272,8 @@ export const obterTelaGastosQueryCategoriaIdMax = 64;
 
 export const obterTelaGastosQueryCartaoIdMax = 64;
 
+export const obterTelaGastosQueryAutorIdMax = 64;
+
 export const obterTelaGastosQueryCursorMax = 2048;
 
 export const obterTelaGastosQueryLimitDefault = 20;
@@ -261,8 +286,17 @@ export const ObterTelaGastosQueryParams = zod.object({
   "grupo": zod.enum(['CARTAO', 'FIXO']).optional(),
   "categoriaId": zod.string().min(1).max(obterTelaGastosQueryCategoriaIdMax).optional(),
   "cartaoId": zod.string().min(1).max(obterTelaGastosQueryCartaoIdMax).optional().describe('ID do cartão, ou `SEM_CARTAO` para os gastos sem cartão.'),
+  "autorId": zod.string().min(1).max(obterTelaGastosQueryAutorIdMax).optional().describe('Só os gastos lançados por esta pessoa; o dono inclui os gastos anteriores aos colaboradores.'),
   "cursor": zod.string().min(1).max(obterTelaGastosQueryCursorMax).optional().describe('Valor de `nextCursor` da página anterior.'),
   "limit": zod.int().min(1).max(obterTelaGastosQueryLimitMax).default(obterTelaGastosQueryLimitDefault).describe('Itens por página.')
+})
+
+export const obterTelaGastosHeaderXContaMax = 64;
+
+
+
+export const ObterTelaGastosHeader = zod.object({
+  "X-Conta": zod.string().min(1).max(obterTelaGastosHeaderXContaMax).optional().describe('`donoId` da conta ativa; ausente = a própria conta.')
 })
 
 export const obterTelaGastosResponseMesRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
@@ -307,7 +341,15 @@ export const ObterTelaGastosResponse = zod.object({
   "numero": zod.int().min(1),
   "total": zod.int().optional().describe('Total de parcelas; ausente na recorrência.'),
   "ajustado": zod.boolean().optional().describe('Editado com o alcance "só esta".')
-}).optional().describe('Posição do gasto num parcelamento ("3/10") ou numa recorrência.')
+}).optional().describe('Posição do gasto num parcelamento ("3/10") ou numa recorrência.'),
+  "lancadoPor": zod.object({
+  "id": zod.string(),
+  "nome": zod.string()
+}).describe('Autor de gasto ou membro da conta. Autor sem perfil aparece como "Ex-colaborador".').optional().describe('Quem lançou; os gastos anteriores aos colaboradores são do dono. Só na lista de gastos e na resposta do POST e do PUT.'),
+  "editadoPor": zod.object({
+  "id": zod.string(),
+  "nome": zod.string()
+}).describe('Autor de gasto ou membro da conta. Autor sem perfil aparece como "Ex-colaborador".').optional().describe('Quem editou por último; ausente se nunca foi editado depois dos colaboradores.')
 }).describe('Gasto com a categoria e o cartão já resolvidos (nome e cor).')),
   "nextCursor": zod.string().optional(),
   "categorias": zod.object({
@@ -334,7 +376,11 @@ export const ObterTelaGastosResponse = zod.object({
   "diaVencimento": zod.int().min(1).max(obterTelaGastosResponseCartoesItemDiaVencimentoMax).describe('Dia do mês; um dia que não existe no mês vale como o último dia.'),
   "limiteCentavos": zod.int().min(obterTelaGastosResponseCartoesItemLimiteCentavosMin).describe('Valor em centavos de real.'),
   "arquivado": zod.boolean()
-})).optional().describe('Todos os cartões, ativos e arquivados, para o filtro.')
+})).optional().describe('Todos os cartões, ativos e arquivados, para o filtro.'),
+  "pessoas": zod.array(zod.object({
+  "id": zod.string(),
+  "nome": zod.string()
+}).describe('Autor de gasto ou membro da conta. Autor sem perfil aparece como "Ex-colaborador".')).optional().describe('O dono e os membros da conta, para o filtro por pessoa.')
 })
 
 
@@ -351,6 +397,14 @@ export const obterTelaGastoFormQueryIdMax = 64;
 
 export const ObterTelaGastoFormQueryParams = zod.object({
   "id": zod.string().min(1).max(obterTelaGastoFormQueryIdMax).optional()
+})
+
+export const obterTelaGastoFormHeaderXContaMax = 64;
+
+
+
+export const ObterTelaGastoFormHeader = zod.object({
+  "X-Conta": zod.string().min(1).max(obterTelaGastoFormHeaderXContaMax).optional().describe('`donoId` da conta ativa; ausente = a própria conta.')
 })
 
 export const obterTelaGastoFormResponseCategoriasCARTAOItemCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
@@ -418,7 +472,15 @@ export const ObterTelaGastoFormResponse = zod.object({
   "numero": zod.int().min(1),
   "total": zod.int().optional().describe('Total de parcelas; ausente na recorrência.'),
   "ajustado": zod.boolean().optional().describe('Editado com o alcance "só esta".')
-}).optional().describe('Posição do gasto num parcelamento ("3/10") ou numa recorrência.')
+}).optional().describe('Posição do gasto num parcelamento ("3/10") ou numa recorrência.'),
+  "lancadoPor": zod.object({
+  "id": zod.string(),
+  "nome": zod.string()
+}).describe('Autor de gasto ou membro da conta. Autor sem perfil aparece como "Ex-colaborador".').optional().describe('Quem lançou; os gastos anteriores aos colaboradores são do dono. Só na lista de gastos e na resposta do POST e do PUT.'),
+  "editadoPor": zod.object({
+  "id": zod.string(),
+  "nome": zod.string()
+}).describe('Autor de gasto ou membro da conta. Autor sem perfil aparece como "Ex-colaborador".').optional().describe('Quem editou por último; ausente se nunca foi editado depois dos colaboradores.')
 }).optional().describe('Gasto com a categoria e o cartão já resolvidos (nome e cor).')
 })
 
@@ -435,6 +497,14 @@ export const ObterTelaGastoFormResponse = zod.object({
  * criar nada.
  * @summary Lançar gasto
  */
+export const criarGastoHeaderXContaMax = 64;
+
+
+
+export const CriarGastoHeader = zod.object({
+  "X-Conta": zod.string().min(1).max(criarGastoHeaderXContaMax).optional().describe('`donoId` da conta ativa; ausente = a própria conta.')
+})
+
 export const criarGastoBodyValorCentavosMax = 100000000;
 
 export const criarGastoBodyCategoriaIdMax = 64;
@@ -505,7 +575,15 @@ export const CriarGastoResponse = zod.object({
   "numero": zod.int().min(1),
   "total": zod.int().optional().describe('Total de parcelas; ausente na recorrência.'),
   "ajustado": zod.boolean().optional().describe('Editado com o alcance "só esta".')
-}).optional().describe('Posição do gasto num parcelamento ("3/10") ou numa recorrência.')
+}).optional().describe('Posição do gasto num parcelamento ("3/10") ou numa recorrência.'),
+  "lancadoPor": zod.object({
+  "id": zod.string(),
+  "nome": zod.string()
+}).describe('Autor de gasto ou membro da conta. Autor sem perfil aparece como "Ex-colaborador".').optional().describe('Quem lançou; os gastos anteriores aos colaboradores são do dono. Só na lista de gastos e na resposta do POST e do PUT.'),
+  "editadoPor": zod.object({
+  "id": zod.string(),
+  "nome": zod.string()
+}).describe('Autor de gasto ou membro da conta. Autor sem perfil aparece como "Ex-colaborador".').optional().describe('Quem editou por último; ausente se nunca foi editado depois dos colaboradores.')
 }).describe('Gasto com a categoria e o cartão já resolvidos (nome e cor).')
 
 
@@ -530,6 +608,14 @@ export const AtualizarGastoParams = zod.object({
 
 export const AtualizarGastoQueryParams = zod.object({
   "escopo": zod.enum(['ESTA', 'PROXIMAS', 'TODAS']).optional().describe('Alcance num parcelamento ou recorrência: `ESTA` (só este gasto, que\nfica ajustado), `PROXIMAS` (este e os seguintes) ou `TODAS`.\nObrigatório num gasto de série; ignorado no gasto avulso.\n')
+})
+
+export const atualizarGastoHeaderXContaMax = 64;
+
+
+
+export const AtualizarGastoHeader = zod.object({
+  "X-Conta": zod.string().min(1).max(atualizarGastoHeaderXContaMax).optional().describe('`donoId` da conta ativa; ausente = a própria conta.')
 })
 
 export const atualizarGastoBodyValorCentavosMax = 100000000;
@@ -602,7 +688,15 @@ export const AtualizarGastoResponse = zod.object({
   "numero": zod.int().min(1),
   "total": zod.int().optional().describe('Total de parcelas; ausente na recorrência.'),
   "ajustado": zod.boolean().optional().describe('Editado com o alcance "só esta".')
-}).optional().describe('Posição do gasto num parcelamento ("3/10") ou numa recorrência.')
+}).optional().describe('Posição do gasto num parcelamento ("3/10") ou numa recorrência.'),
+  "lancadoPor": zod.object({
+  "id": zod.string(),
+  "nome": zod.string()
+}).describe('Autor de gasto ou membro da conta. Autor sem perfil aparece como "Ex-colaborador".').optional().describe('Quem lançou; os gastos anteriores aos colaboradores são do dono. Só na lista de gastos e na resposta do POST e do PUT.'),
+  "editadoPor": zod.object({
+  "id": zod.string(),
+  "nome": zod.string()
+}).describe('Autor de gasto ou membro da conta. Autor sem perfil aparece como "Ex-colaborador".').optional().describe('Quem editou por último; ausente se nunca foi editado depois dos colaboradores.')
 }).describe('Gasto com a categoria e o cartão já resolvidos (nome e cor).')
 
 
@@ -623,6 +717,14 @@ export const ExcluirGastoQueryParams = zod.object({
   "escopo": zod.enum(['ESTA', 'PROXIMAS', 'TODAS']).optional().describe('Alcance num parcelamento ou recorrência: `ESTA` (só este gasto, que\nfica ajustado), `PROXIMAS` (este e os seguintes) ou `TODAS`.\nObrigatório num gasto de série; ignorado no gasto avulso.\n')
 })
 
+export const excluirGastoHeaderXContaMax = 64;
+
+
+
+export const ExcluirGastoHeader = zod.object({
+  "X-Conta": zod.string().min(1).max(excluirGastoHeaderXContaMax).optional().describe('`donoId` da conta ativa; ausente = a própria conta.')
+})
+
 export const ExcluirGastoResponse = zod.void()
 
 
@@ -630,6 +732,14 @@ export const ExcluirGastoResponse = zod.void()
  * Padrão do sistema e personalizadas do próprio usuário, agrupadas por grupo.
  * @summary Categorias visíveis ao usuário
  */
+export const listarCategoriasHeaderXContaMax = 64;
+
+
+
+export const ListarCategoriasHeader = zod.object({
+  "X-Conta": zod.string().min(1).max(listarCategoriasHeaderXContaMax).optional().describe('`donoId` da conta ativa; ausente = a própria conta.')
+})
+
 export const listarCategoriasResponseCARTAOItemCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const listarCategoriasResponseFIXOItemCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 
@@ -655,6 +765,14 @@ export const ListarCategoriasResponse = zod.object({
 /**
  * @summary Criar categoria personalizada
  */
+export const criarCategoriaHeaderXContaMax = 64;
+
+
+
+export const CriarCategoriaHeader = zod.object({
+  "X-Conta": zod.string().min(1).max(criarCategoriaHeaderXContaMax).optional().describe('`donoId` da conta ativa; ausente = a própria conta.')
+})
+
 export const criarCategoriaBodyNomeMax = 40;
 
 export const criarCategoriaBodyCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
@@ -689,6 +807,14 @@ export const ExcluirCategoriaParams = zod.object({
   "id": zod.string().min(1).max(excluirCategoriaPathIdMax)
 })
 
+export const excluirCategoriaHeaderXContaMax = 64;
+
+
+
+export const ExcluirCategoriaHeader = zod.object({
+  "X-Conta": zod.string().min(1).max(excluirCategoriaHeaderXContaMax).optional().describe('`donoId` da conta ativa; ausente = a própria conta.')
+})
+
 export const ExcluirCategoriaResponse = zod.void()
 
 
@@ -703,6 +829,14 @@ export const obterTelaCartoesQueryMesRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2]
 
 export const ObterTelaCartoesQueryParams = zod.object({
   "mes": zod.string().regex(obterTelaCartoesQueryMesRegExp).describe('Mês no formato AAAA-MM. O app envia o mês corrente no fuso do dispositivo.')
+})
+
+export const obterTelaCartoesHeaderXContaMax = 64;
+
+
+
+export const ObterTelaCartoesHeader = zod.object({
+  "X-Conta": zod.string().min(1).max(obterTelaCartoesHeaderXContaMax).optional().describe('`donoId` da conta ativa; ausente = a própria conta.')
 })
 
 export const obterTelaCartoesResponseMesRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
@@ -744,6 +878,14 @@ export const ObterTelaCartoesResponse = zod.object({
  * Ativos e arquivados, em ordem de apelido.
  * @summary Cartões do usuário
  */
+export const listarCartoesHeaderXContaMax = 64;
+
+
+
+export const ListarCartoesHeader = zod.object({
+  "X-Conta": zod.string().min(1).max(listarCartoesHeaderXContaMax).optional().describe('`donoId` da conta ativa; ausente = a própria conta.')
+})
+
 export const listarCartoesResponseItensItemCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const listarCartoesResponseItensItemDiaFechamentoMax = 31;
 
@@ -770,6 +912,14 @@ export const ListarCartoesResponse = zod.object({
  * Apelido único entre os cartões ativos; no máximo 20 ativos.
  * @summary Cadastrar cartão
  */
+export const criarCartaoHeaderXContaMax = 64;
+
+
+
+export const CriarCartaoHeader = zod.object({
+  "X-Conta": zod.string().min(1).max(criarCartaoHeaderXContaMax).optional().describe('`donoId` da conta ativa; ausente = a própria conta.')
+})
+
 export const criarCartaoBodyApelidoMax = 40;
 
 export const criarCartaoBodyCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
@@ -819,6 +969,14 @@ export const atualizarCartaoPathIdMax = 64;
 
 export const AtualizarCartaoParams = zod.object({
   "id": zod.string().min(1).max(atualizarCartaoPathIdMax)
+})
+
+export const atualizarCartaoHeaderXContaMax = 64;
+
+
+
+export const AtualizarCartaoHeader = zod.object({
+  "X-Conta": zod.string().min(1).max(atualizarCartaoHeaderXContaMax).optional().describe('`donoId` da conta ativa; ausente = a própria conta.')
 })
 
 export const atualizarCartaoBodyApelidoMax = 40;
@@ -872,6 +1030,14 @@ export const ArquivarCartaoParams = zod.object({
   "id": zod.string().min(1).max(arquivarCartaoPathIdMax)
 })
 
+export const arquivarCartaoHeaderXContaMax = 64;
+
+
+
+export const ArquivarCartaoHeader = zod.object({
+  "X-Conta": zod.string().min(1).max(arquivarCartaoHeaderXContaMax).optional().describe('`donoId` da conta ativa; ausente = a própria conta.')
+})
+
 export const ArquivarCartaoBody = zod.object({
   "arquivado": zod.boolean().describe('true arquiva; false reativa')
 })
@@ -905,6 +1071,14 @@ export const excluirCartaoPathIdMax = 64;
 
 export const ExcluirCartaoParams = zod.object({
   "id": zod.string().min(1).max(excluirCartaoPathIdMax)
+})
+
+export const excluirCartaoHeaderXContaMax = 64;
+
+
+
+export const ExcluirCartaoHeader = zod.object({
+  "X-Conta": zod.string().min(1).max(excluirCartaoHeaderXContaMax).optional().describe('`donoId` da conta ativa; ausente = a própria conta.')
 })
 
 export const ExcluirCartaoResponse = zod.void()
@@ -982,3 +1156,172 @@ export const ExcluirUsuarioParams = zod.object({
 })
 
 export const ExcluirUsuarioResponse = zod.void()
+
+
+/**
+ * A própria conta (papel `DONO`) primeiro, depois as contas em que o
+ * usuário colabora, e os convites pendentes para o e-mail verificado do
+ * token. Base do seletor de conta e do aviso de convites.
+ * @summary Contas do usuário e convites recebidos
+ */
+
+
+
+export const ObterContasResponse = zod.object({
+  "contas": zod.array(zod.object({
+  "donoId": zod.string().describe('Valor para o cabeçalho `X-Conta`.'),
+  "nomeDono": zod.string(),
+  "papel": zod.enum(['DONO', 'EDITOR', 'LEITOR']).describe('`EDITOR` faz tudo o que o dono faz com gastos, cartões e categorias; `LEITOR` só consulta.')
+})).min(1).describe('A própria conta primeiro, depois as contas em que o usuário colabora.'),
+  "convites": zod.array(zod.object({
+  "donoId": zod.string(),
+  "nomeDono": zod.string(),
+  "papel": zod.enum(['EDITOR', 'LEITOR']),
+  "criadoEm": zod.iso.datetime({"offset":true})
+}))
+})
+
+
+/**
+ * Vale só para o e-mail verificado do token; convite de outro e-mail responde 404.
+ * @summary Aceitar convite
+ */
+export const aceitarConvitePathDonoIdMax = 64;
+
+
+
+export const AceitarConviteParams = zod.object({
+  "donoId": zod.string().min(1).max(aceitarConvitePathDonoIdMax)
+})
+
+export const AceitarConviteResponse = zod.object({
+  "donoId": zod.string().describe('Valor para o cabeçalho `X-Conta`.'),
+  "nomeDono": zod.string(),
+  "papel": zod.enum(['DONO', 'EDITOR', 'LEITOR']).describe('`EDITOR` faz tudo o que o dono faz com gastos, cartões e categorias; `LEITOR` só consulta.')
+})
+
+
+/**
+ * Apaga o convite e libera a vaga.
+ * @summary Recusar convite
+ */
+export const recusarConvitePathDonoIdMax = 64;
+
+
+
+export const RecusarConviteParams = zod.object({
+  "donoId": zod.string().min(1).max(recusarConvitePathDonoIdMax)
+})
+
+export const RecusarConviteResponse = zod.void()
+
+
+/**
+ * O colaborador deixa a conta; os gastos que lançou continuam nela.
+ * @summary Sair de uma conta
+ */
+export const sairDaContaPathDonoIdMax = 64;
+
+
+
+export const SairDaContaParams = zod.object({
+  "donoId": zod.string().min(1).max(sairDaContaPathDonoIdMax)
+})
+
+export const SairDaContaResponse = zod.void()
+
+
+/**
+ * Membros e convites pendentes, que juntos somam até `limite`.
+ * @summary Colaboradores da própria conta (dono)
+ */
+export const ListarColaboradoresResponse = zod.object({
+  "membros": zod.array(zod.object({
+  "userId": zod.string(),
+  "nome": zod.string(),
+  "email": zod.string(),
+  "papel": zod.enum(['EDITOR', 'LEITOR']),
+  "desde": zod.iso.datetime({"offset":true})
+})),
+  "convites": zod.array(zod.object({
+  "email": zod.string(),
+  "papel": zod.enum(['EDITOR', 'LEITOR']),
+  "criadoEm": zod.iso.datetime({"offset":true})
+})).describe('Convites pendentes, que também ocupam vaga.'),
+  "limite": zod.int().describe('Máximo de membros mais convites.')
+})
+
+
+/**
+ * O e-mail é comparado em minúsculas e sem espaços nas pontas. Não se
+ * convida o próprio e-mail. Nenhum e-mail de notificação é enviado.
+ * @summary Convidar colaborador (dono)
+ */
+export const convidarBodyEmailMax = 254;
+
+
+
+export const ConvidarBody = zod.object({
+  "email": zod.string().min(1).max(convidarBodyEmailMax),
+  "papel": zod.enum(['EDITOR', 'LEITOR'])
+})
+
+export const ConvidarResponse = zod.object({
+  "email": zod.string(),
+  "papel": zod.enum(['EDITOR', 'LEITOR']),
+  "criadoEm": zod.iso.datetime({"offset":true})
+})
+
+
+/**
+ * Vale na próxima requisição do colaborador, em até 10 segundos.
+ * @summary Mudar o papel de um colaborador (dono)
+ */
+export const mudarPapelPathUserIdMax = 64;
+
+
+
+export const MudarPapelParams = zod.object({
+  "userId": zod.string().min(1).max(mudarPapelPathUserIdMax)
+})
+
+export const MudarPapelBody = zod.object({
+  "papel": zod.enum(['EDITOR', 'LEITOR'])
+})
+
+export const MudarPapelResponse = zod.object({
+  "userId": zod.string(),
+  "nome": zod.string(),
+  "email": zod.string(),
+  "papel": zod.enum(['EDITOR', 'LEITOR']),
+  "desde": zod.iso.datetime({"offset":true})
+})
+
+
+/**
+ * O acesso termina em até 10 segundos; os gastos que ele lançou continuam na conta.
+ * @summary Remover colaborador (dono)
+ */
+export const removerColaboradorPathUserIdMax = 64;
+
+
+
+export const RemoverColaboradorParams = zod.object({
+  "userId": zod.string().min(1).max(removerColaboradorPathUserIdMax)
+})
+
+export const RemoverColaboradorResponse = zod.void()
+
+
+/**
+ * @summary Cancelar convite (dono)
+ */
+export const cancelarConvitePathEmailMax = 254;
+
+
+
+export const CancelarConviteParams = zod.object({
+  "email": zod.string().min(1).max(cancelarConvitePathEmailMax)
+})
+
+export const CancelarConviteResponse = zod.void()

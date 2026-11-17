@@ -2,6 +2,7 @@ import { fireEvent, screen } from '@testing-library/react-native';
 import { http, HttpResponse } from 'msw';
 
 import { configurarAutenticacao } from '@/shared/api';
+import { Text } from '@/shared/ui';
 
 import { BFF, meQueAceita, perfilAna, usarServidor } from '../../../../test/msw';
 import { renderizar } from '../../../../test/render';
@@ -119,4 +120,10 @@ it('"Alterar senha" abre a troca de senha (spec autenticacao, "Acesso pelo perfi
   await screen.findByText('Ana Souza');
   await fireEvent.press(screen.getByRole('button', { name: 'Alterar senha' }));
   expect(mockAlterarSenha).toHaveBeenCalled();
+});
+
+it('mostra os itens da conta compartilhada recebidos do app', async () => {
+  server.use(meQueAceita('access-1'));
+  await renderizar(<PerfilView {...acoes} acoesDaConta={<Text>itens da conta</Text>} />);
+  expect(await screen.findByText('itens da conta')).toBeOnTheScreen();
 });

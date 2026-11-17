@@ -265,3 +265,28 @@ describe('CartaoForm', () => {
     expect(await screen.findByText('Este cartão não existe mais.')).toBeOnTheScreen();
   });
 });
+
+describe('CartoesView do colaborador Leitor', () => {
+  it('vê as faturas, sem cadastrar nem editar', async () => {
+    server.use(
+      http.get(`${BFF}/telas/cartoes`, () =>
+        HttpResponse.json({ mes: '2026-12', hoje: '2026-11-16', cartoes: [resumo(nubank, 0, 0)] }),
+      ),
+    );
+    await renderizar(<CartoesView onAbrirFatura={jest.fn()} mesInicial="2026-12" />);
+    expect(await screen.findByRole('button', { name: /^Nubank: fatura/ })).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Editar Nubank' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Novo cartão' })).toBeNull();
+  });
+
+  it('sem cartões, sem o atalho para cadastrar', async () => {
+    server.use(
+      http.get(`${BFF}/telas/cartoes`, () =>
+        HttpResponse.json({ mes: '2026-12', hoje: '2026-11-16', cartoes: [] }),
+      ),
+    );
+    await renderizar(<CartoesView onAbrirFatura={jest.fn()} mesInicial="2026-12" />);
+    expect(await screen.findByText(/Cadastre seus cartões/)).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Cadastrar cartão' })).toBeNull();
+  });
+});

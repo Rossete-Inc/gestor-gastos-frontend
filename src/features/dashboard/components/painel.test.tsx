@@ -467,3 +467,21 @@ describe('PainelView por cartão', () => {
     expect(detalhe.getByText('R$ 700,00')).toBeOnTheScreen();
   });
 });
+
+describe('PainelView do colaborador Leitor', () => {
+  it('sem lançar e sem abrir os últimos lançamentos', async () => {
+    server.use(bffDoPainel({ '2026-11': novembro }).handler);
+    await renderizar(<PainelView onVerTodos={jest.fn()} mesInicial="2026-11" />);
+    expect(await screen.findByLabelText('Total do mês: R$ 2.500,00')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Novo gasto' })).toBeNull();
+    expect(screen.getByText('Últimos lançamentos')).toBeOnTheScreen();
+    expect(screen.queryAllByLabelText(/Abre o gasto/)).toHaveLength(0);
+  });
+
+  it('mês vazio sem o atalho para lançar', async () => {
+    server.use(bffDoPainel({}).handler);
+    await renderizar(<PainelView onVerTodos={jest.fn()} mesInicial="2026-12" />);
+    expect(await screen.findByText('Nenhum gasto neste mês')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Lançar gasto' })).toBeNull();
+  });
+});

@@ -1,8 +1,9 @@
-import type { ReactNode } from 'react';
+import { useContext, type ReactNode } from 'react';
 import { KeyboardAvoidingView, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Header } from './Header';
+import { TopoDaTela } from './TopoDaTela';
 import { tokens } from './tokens';
 
 type Props = {
@@ -20,10 +21,18 @@ type Props = {
 
 /** Moldura de tela: área segura, fundo, rolagem e largura máxima na web. */
 export function Screen({ children, title, onBack, centered, footer, overlay }: Props) {
+  // Abaixo do título, o que o layout de cima pôs em TopoDaTela (por exemplo,
+  // o seletor de conta nas abas).
+  const topo = useContext(TopoDaTela);
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView behavior="padding" style={styles.flex}>
         {title && <Header title={title} onBack={onBack} />}
+        {title && topo ? (
+          <View style={styles.topo}>
+            <View style={styles.coluna}>{topo}</View>
+          </View>
+        ) : null}
         <ScrollView
           contentContainerStyle={[styles.conteudo, centered && styles.centrado]}
           keyboardShouldPersistTaps="handled"
@@ -47,6 +56,7 @@ const styles = StyleSheet.create({
   conteudo: { flexGrow: 1, padding: tokens.space.xl },
   centrado: { justifyContent: 'center' },
   rodape: { paddingHorizontal: tokens.space.xl, paddingVertical: tokens.space.lg },
+  topo: { paddingHorizontal: tokens.space.xl },
   // 480 px: largura do layout mobile do Figma (390) com folga, centralizado na web.
   coluna: { width: '100%', maxWidth: 480, alignSelf: 'center', gap: tokens.space.lg },
 });

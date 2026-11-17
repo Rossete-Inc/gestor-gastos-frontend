@@ -18,7 +18,8 @@ import { useCategorias, useExcluirCategoria } from '../api/queries';
 import { GRUPOS, type Categoria } from '../model/categoria';
 
 type Props = {
-  onNova: () => void;
+  /** Sem onNova, a tela só mostra: nem criar nem excluir (colaborador Leitor). */
+  onNova?: () => void;
   onVoltar?: () => void;
 };
 
@@ -68,13 +69,17 @@ export function CategoriasView({ onNova, onVoltar }: Props) {
                   </Text>
                 ) : (
                   categorias.data[g.valor].map((c) => (
-                    <ItemCategoria key={c.id} categoria={c} onExcluir={() => setAExcluir(c)} />
+                    <ItemCategoria
+                      key={c.id}
+                      categoria={c}
+                      {...(onNova ? { onExcluir: () => setAExcluir(c) } : {})}
+                    />
                   ))
                 )}
               </View>
             </View>
           ))}
-          <Button label="Nova categoria" variant="secondary" onPress={onNova} />
+          {onNova && <Button label="Nova categoria" variant="secondary" onPress={onNova} />}
         </>
       )}
       <ConfirmDialog
@@ -90,7 +95,7 @@ export function CategoriasView({ onNova, onVoltar }: Props) {
   );
 }
 
-function ItemCategoria({ categoria, onExcluir }: { categoria: Categoria; onExcluir: () => void }) {
+function ItemCategoria({ categoria, onExcluir }: { categoria: Categoria; onExcluir?: () => void }) {
   return (
     <View style={styles.item}>
       {/* A cor é dado da categoria (a mesma da pizza), não um token de UI. */}
@@ -103,15 +108,17 @@ function ItemCategoria({ categoria, onExcluir }: { categoria: Categoria; onExclu
       ) : (
         <>
           <Badge label="Personalizada" tone="brand" style={styles.selo} />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Excluir ${categoria.nome}`}
-            onPress={onExcluir}
-            hitSlop={tokens.space.sm}
-            style={styles.excluir}
-          >
-            <Icon name="trash" color="danger" size={tokens.size.iconSm} />
-          </Pressable>
+          {onExcluir && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Excluir ${categoria.nome}`}
+              onPress={onExcluir}
+              hitSlop={tokens.space.sm}
+              style={styles.excluir}
+            >
+              <Icon name="trash" color="danger" size={tokens.size.iconSm} />
+            </Pressable>
+          )}
         </>
       )}
     </View>

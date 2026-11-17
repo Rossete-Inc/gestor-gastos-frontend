@@ -35,8 +35,9 @@ import {
 } from '../model/painel';
 
 type Props = {
-  onNovo: () => void;
-  onAbrir: (id: string) => void;
+  /** Sem onNovo e onAbrir, o painel só mostra (colaborador Leitor). */
+  onNovo?: () => void;
+  onAbrir?: (id: string) => void;
   /** "Ver todos": a lista de gastos do mês aberto no painel. */
   onVerTodos: (mes: string) => void;
   /** Mês aberto ao entrar; padrão é o mês corrente no fuso do dispositivo. */
@@ -52,7 +53,7 @@ export function PainelView({ onNovo, onAbrir, onVerTodos, mesInicial }: Props) {
   const painel = useTelaDashboard(mes);
 
   return (
-    <Screen title="Painel" overlay={<Fab label="Novo gasto" onPress={onNovo} />}>
+    <Screen title="Painel" overlay={onNovo && <Fab label="Novo gasto" onPress={onNovo} />}>
       <MonthSelector mes={mes} onChange={setMes} />
       {painel.isPending ? (
         <Text color="textMuted" accessibilityRole="progressbar">
@@ -84,8 +85,8 @@ function Conteudo({
   onVerTodos,
 }: {
   tela: TelaDashboard;
-  onNovo: () => void;
-  onAbrir: (id: string) => void;
+  onNovo?: () => void;
+  onAbrir?: (id: string) => void;
   onVerTodos: () => void;
 }) {
   const vazio = tela.totalCentavos === 0;
@@ -118,7 +119,7 @@ function Conteudo({
                 cor={g.categoria.cor}
                 icone={g.grupo === 'FIXO' ? 'repeat' : 'credit-card'}
                 accessibilityHint="Abre o gasto para editar ou excluir"
-                onPress={() => onAbrir(g.id)}
+                {...(onAbrir ? { onPress: () => onAbrir(g.id) } : {})}
                 selo={seloDaSerie(g.serie)}
               />
             ))}
@@ -269,7 +270,7 @@ const corDaFatia = (f: Fatia) => f.cor ?? tokens.color.textSubtle;
 
 // Requirement "Painel sem dados": totais zerados e, no lugar do gráfico, uma
 // mensagem com atalho para lançar um gasto.
-function MesVazio({ onNovo }: { onNovo: () => void }) {
+function MesVazio({ onNovo }: { onNovo?: () => void }) {
   return (
     <View style={[styles.cartao, styles.vazio]}>
       <View style={styles.iconeVazio}>
@@ -281,7 +282,7 @@ function MesVazio({ onNovo }: { onNovo: () => void }) {
       <Text color="textMuted" align="center">
         Lance seu primeiro gasto para ver o gráfico por categoria.
       </Text>
-      <Button label="Lançar gasto" onPress={onNovo} />
+      {onNovo && <Button label="Lançar gasto" onPress={onNovo} />}
     </View>
   );
 }
