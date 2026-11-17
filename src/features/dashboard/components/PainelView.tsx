@@ -155,8 +155,8 @@ function TotaisPorCartao({ tela }: { tela: TelaDashboard }) {
 
 // Requirement "Gráfico de pizza por categoria": participação de cada
 // categoria (ou cartão), com valor e percentual por fatia, na cor dela.
-// Tocar numa fatia ou no item da legenda (ou passar o mouse, na web) mostra
-// o detalhe dela; tocar fora fecha.
+// Tocar numa fatia ou no item da legenda (ou passar o mouse, na web) destaca
+// a fatia e abre o balão com o detalhe dela; tocar fora fecha.
 function PorCategoria({ tela }: { tela: TelaDashboard }) {
   const [visao, setVisaoAtual] = useState<Visao>('todas');
   const [selecionada, setSelecionada] = useState<number | null>(null);
@@ -201,8 +201,8 @@ function PorCategoria({ tela }: { tela: TelaDashboard }) {
             accessibilityLabel={`Gráfico ${visao === 'cartoes' ? 'por cartão' : `por categoria, ${nomeDaVisao.toLowerCase()}`}: total de ${formatarCentavos(total)}`}
             selecionada={selecionada}
             onSelecionar={setSelecionada}
+            balao={fatiaSelecionada && <DetalheFatia fatia={fatiaSelecionada} />}
           />
-          {fatiaSelecionada && <DetalheFatia fatia={fatiaSelecionada} />}
           <View style={styles.legenda}>
             {fatias.map((f, i) => (
               <LegendItem
@@ -225,6 +225,7 @@ function PorCategoria({ tela }: { tela: TelaDashboard }) {
 
 // Requirement "Detalhe da fatia do gráfico": nome, grupo, valor e
 // percentual, e a divisão por cartão (ou por grupo, na visão por cartão).
+// É o conteúdo do balão que sai da fatia (PieChart).
 function DetalheFatia({ fatia }: { fatia: Fatia }) {
   return (
     <View testID="detalhe-fatia" accessibilityLiveRegion="polite" style={styles.detalhe}>
@@ -286,12 +287,7 @@ const styles = StyleSheet.create({
   },
   semFatias: { paddingVertical: tokens.space.xl },
   legenda: { gap: tokens.space.xs },
-  detalhe: {
-    gap: tokens.space.xs,
-    padding: tokens.space.md,
-    borderRadius: tokens.radius.md,
-    backgroundColor: tokens.color.surfaceMuted,
-  },
+  detalhe: { gap: tokens.space.xs },
   parte: { flexDirection: 'row', alignItems: 'center', gap: tokens.space.sm },
   bolinha: {
     width: tokens.space.sm + tokens.space.xxs,

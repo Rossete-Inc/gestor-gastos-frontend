@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
-import { variantDoValorCentro } from './PieChart';
+import { esmaecer, variantDoValorCentro } from './PieChart';
 import {
   Badge,
   Banner,
@@ -155,6 +155,31 @@ describe('PieChart', () => {
     const oculto = { includeHiddenElements: true };
     expect(screen.getAllByText('R$ 100,60', oculto).length).toBeGreaterThan(0); // => "R$ 100,60"
     expect(screen.queryByText('R$ 101', oculto)).toBeNull();
+  });
+
+  it('mostra o balão só com uma fatia selecionada (spec, "Detalhe da fatia")', async () => {
+    const pizza = (selecionada: number | null) => (
+      <PieChart
+        fatias={[
+          { chave: 'a', valor: 3, cor: '#F97316' },
+          { chave: 'b', valor: 1, cor: '#0EA5E9' },
+        ]}
+        rotuloCentro="Total"
+        valorCentro="R$ 4,00"
+        accessibilityLabel="Gráfico"
+        selecionada={selecionada}
+        balao={<Text>Detalhe da fatia</Text>}
+      />
+    );
+    const { rerender } = await render(pizza(null));
+    expect(screen.queryByText('Detalhe da fatia')).toBeNull();
+    await rerender(pizza(1));
+    expect(screen.getByText('Detalhe da fatia')).toBeOnTheScreen(); // => balão aberto
+  });
+
+  it('esmaece a cor das fatias fora de foco', () => {
+    expect(esmaecer('#F97316')).toBe('#F9731655'); // => "#F9731655"
+    expect(esmaecer('red')).toBe('red');
   });
 
   it('diminui a fonte do centro conforme o valor cresce, para caber no furo', () => {
