@@ -4,7 +4,16 @@ import { Controller, useForm, useWatch } from 'react-hook-form';
 import { StyleSheet, View } from 'react-native';
 
 import { ApiError } from '@/shared/api';
-import { brParaISO, mascararDataBR, mesDaFatura, rotuloCurtoDoMes } from '@/shared/lib';
+import {
+  brParaISO,
+  brParaMes,
+  formatarCentavos,
+  mascararDataBR,
+  mascararMesBR,
+  mesDaFatura,
+  previaParcelas,
+  rotuloCurtoDoMes,
+} from '@/shared/lib';
 import {
   Badge,
   Banner,
@@ -13,8 +22,8 @@ import {
   ConfirmDialog,
   MoneyField,
   Screen,
+  SegmentedControl,
   Select,
-  Switch,
   Text,
   TextField,
   tokens,
@@ -30,15 +39,22 @@ import {
 import {
   GastoFormSchema,
   MAX_DESCRICAO,
+  MODOS_DE_PARCELA,
   ROTULO_DO_GRUPO,
+  TIPOS_DE_LANCAMENTO,
   grupoDaCategoria,
+  inteiro,
+  novaChave,
   paraGastoIn,
+  seloDaSerie,
   valoresIniciais,
   type Cartao,
   type CategoriasPorGrupo,
+  type Escopo,
   type Gasto,
   type GastoFormInput,
 } from '../model/gasto';
+import { EscopoSerieDialog } from './EscopoSerieDialog';
 
 type Props = {
   /** Sem id: novo gasto. Com id: edição, com a opção de excluir. */
@@ -88,7 +104,16 @@ export function GastoForm({ id, onConcluido, onVoltar }: Props) {
   );
 }
 
-const campos = ['valorCentavos', 'data', 'categoriaId', 'cartaoId', 'descricao'] as const;
+const campos = [
+  'valorCentavos',
+  'data',
+  'categoriaId',
+  'cartaoId',
+  'descricao',
+  'parcelas',
+  'parcelaAtual',
+  'mesFinal',
+] as const;
 
 type FormProps = {
   titulo: string;
@@ -105,6 +130,13 @@ function Formulario({ titulo, categorias, cartoes, gasto, onConcluido, onVoltar 
   const excluir = useExcluirGasto();
   const salvar = gasto ? atualizar : criar;
   const [confirmando, setConfirmando] = useState(false);
+  // Num gasto de série, salvar e excluir pedem o alcance antes.
+  const [escopoPara, setEscopoPara] = useState<'salvar' | 'excluir' | null>(null);
+  const [pendente, setPendente] = useState<GastoFormInput | null>(null);
+  // Uma chave por formulário: reenviar depois de uma falha de rede não
+  // duplica o lançamento (o serviço devolve o mesmo gasto).
+  const [chave] = useState(novaChave);
+  const posicao = gasto?.serie ? posicaoDaSerie(gasto) : null;
 
   const {
     control,
@@ -127,6 +159,19 @@ function Formulario({ titulo, categorias, cartoes, gasto, onConcluido, onVoltar 
   const grupo = grupoDaCategoria(categorias, useWatch({ control, name: 'categoriaId' }));
   const cartaoId = useWatch({ control, name: 'cartaoId' });
   const data = useWatch({ control, name: 'data' });
+  const tipo = useWatch({ control, name: 'tipo' });
+  const modoParcela = useWatch({ control, name: 'modoParcela' });
+  const valor = useWatch({ control, name: 'valorCentavos' });
+  const parcelas = useWatch({ control, name: 'parcelas' });
+  const parcelaAtual = useWatch({ control, name: 'parcelaAtual' });
+  const mesFinal = useWatch({ control, name: 'mesFinal' });
+
+  const gravar = (dados: GastoFormInput, escopo?: Escopo) => {
+    const opcoes = { onSuccess: onConcluido, onError: aoFalhar };
+    if (gasto)
+      atualizar.mutate({ dados: paraGastoIn(dados), ...(escopo ? { escopo } : {}) }, opcoes);
+    else criar.mutate(paraGastoIn(dados, chave), opcoes);
+  };
 
   const enviar = handleSubmit((dados) => {
     // Categoria de cartão exige cartão (spec, "Gasto de cartão sem cartão");
@@ -135,22 +180,50 @@ function Formulario({ titulo, categorias, cartoes, gasto, onConcluido, onVoltar 
       setError('cartaoId', { message: 'Escolha o cartão.' });
       return;
     }
-    salvar.mutate(paraGastoIn(dados), { onSuccess: onConcluido, onError: aoFalhar });
+    if (gasto?.serie) {
+      setPendente(dados);
+      setEscopoPara('salvar');
+      return;
+    }
+    gravar(dados);
   });
 
-  const confirmarExclusao = () => {
+  const excluirGasto = (escopo?: Escopo) => {
     if (!gasto) return;
-    excluir.mutate(gasto.id, {
-      onSuccess: () => {
-        setConfirmando(false);
-        onConcluido();
+    excluir.mutate(
+      { id: gasto.id, ...(escopo ? { escopo } : {}) },
+      {
+        onSuccess: () => {
+          setConfirmando(false);
+          onConcluido();
+        },
+        onError: () => setConfirmando(false),
       },
-      onError: () => setConfirmando(false),
-    });
+    );
+  };
+
+  const escolherEscopo = (escopo: Escopo) => {
+    const acao = escopoPara;
+    setEscopoPara(null);
+    if (acao === 'excluir') excluirGasto(escopo);
+    else if (pendente) gravar(pendente, escopo);
   };
 
   const erro = salvar.error && salvar.error.errors.length === 0 ? salvar.error : excluir.error;
   const fatura = faturaPrevista(cartoes, cartaoId, data);
+  const parcelado = !gasto && tipo === 'PARCELADO';
+  const previa = parcelado
+    ? textoDaPrevia(
+        previaParcelas({
+          modo: modoParcela,
+          valorCentavos: valor,
+          parcelas: inteiro(parcelas) ?? 0,
+          parcelaAtual: inteiro(parcelaAtual) ?? 1,
+          mesFinal: brParaMes(mesFinal) ?? '',
+          primeiroMes: mesDaCompra(cartoes, cartaoId, data) ?? '',
+        }),
+      )
+    : null;
 
   return (
     <Screen
@@ -159,12 +232,50 @@ function Formulario({ titulo, categorias, cartoes, gasto, onConcluido, onVoltar 
       footer={<Button label="Salvar gasto" onPress={enviar} loading={salvar.isPending} />}
     >
       {erro && <Banner tone={erro.status === 0 ? 'offline' : 'error'} message={mensagem(erro)} />}
+      {posicao && (
+        <View style={styles.grupo}>
+          <Text variant="caption" color="textMuted">
+            {gasto?.serie?.tipo === 'PARCELAMENTO' ? 'Parcelamento' : 'Recorrência'}
+          </Text>
+          <Badge label={posicao} tone="neutral" style={styles.selo} />
+        </View>
+      )}
+      {!gasto && (
+        <Controller
+          control={control}
+          name="tipo"
+          render={({ field }) => (
+            <SegmentedControl
+              label="Como lançar"
+              opcoes={TIPOS_DE_LANCAMENTO}
+              valor={field.value}
+              onChange={field.onChange}
+            />
+          )}
+        />
+      )}
+      {parcelado && (
+        <Controller
+          control={control}
+          name="modoParcela"
+          render={({ field }) => (
+            <SegmentedControl
+              label="Informar"
+              opcoes={MODOS_DE_PARCELA}
+              valor={field.value}
+              onChange={field.onChange}
+            />
+          )}
+        />
+      )}
       <Controller
         control={control}
         name="valorCentavos"
         render={({ field }) => (
           <MoneyField
-            label="Valor"
+            label={
+              parcelado ? (modoParcela === 'TOTAL' ? 'Valor total' : 'Valor da parcela') : 'Valor'
+            }
             centavos={field.value}
             onChange={field.onChange}
             onBlur={field.onBlur}
@@ -254,24 +365,83 @@ function Formulario({ titulo, categorias, cartoes, gasto, onConcluido, onVoltar 
           />
         )}
       />
-      <Controller
-        control={control}
-        name="recorrente"
-        render={({ field }) => (
-          <Switch
-            label="Gasto recorrente"
-            hint="Marque para contas fixas mensais."
-            value={field.value}
-            onValueChange={field.onChange}
-          />
-        )}
-      />
+      {parcelado && (
+        <View style={styles.linha}>
+          {modoParcela === 'PARCELA' && (
+            <View style={styles.metade}>
+              <Controller
+                control={control}
+                name="parcelaAtual"
+                render={({ field }) => (
+                  <TextField
+                    label="Parcela atual"
+                    placeholder="1"
+                    value={field.value}
+                    onChangeText={(t) => field.onChange(t.replace(/\D/g, '').slice(0, 2))}
+                    onBlur={field.onBlur}
+                    keyboardType="number-pad"
+                    inputMode="numeric"
+                    error={errors.parcelaAtual?.message}
+                  />
+                )}
+              />
+            </View>
+          )}
+          <View style={styles.metade}>
+            <Controller
+              control={control}
+              name="parcelas"
+              render={({ field }) => (
+                <TextField
+                  label={modoParcela === 'PARCELA' ? 'Total de parcelas' : 'Parcelas'}
+                  placeholder="3"
+                  value={field.value}
+                  onChangeText={(t) => field.onChange(t.replace(/\D/g, '').slice(0, 2))}
+                  onBlur={field.onBlur}
+                  keyboardType="number-pad"
+                  inputMode="numeric"
+                  error={errors.parcelas?.message}
+                />
+              )}
+            />
+          </View>
+        </View>
+      )}
+      {((parcelado && modoParcela === 'PARCELA') || (!gasto && tipo === 'RECORRENTE')) && (
+        <Controller
+          control={control}
+          name="mesFinal"
+          render={({ field }) => (
+            <TextField
+              label={parcelado ? 'Ou mês da última parcela' : 'Mês final (opcional)'}
+              placeholder="MM/AAAA"
+              value={field.value}
+              onChangeText={(t) => field.onChange(mascararMesBR(t))}
+              onBlur={field.onBlur}
+              keyboardType="number-pad"
+              inputMode="numeric"
+              maxLength={7}
+              hint={
+                parcelado
+                  ? 'A fatura da última parcela, se não souber o total.'
+                  : 'Repete todo mês, no mesmo dia, até este mês ou até você encerrar.'
+              }
+              error={errors.mesFinal?.message}
+            />
+          )}
+        />
+      )}
+      {previa && (
+        <Text testID="previa-parcelas" variant="body" style={styles.previa}>
+          {previa}
+        </Text>
+      )}
       {gasto && (
         <Button
           label="Excluir gasto"
           icon="trash"
           variant="ghost"
-          onPress={() => setConfirmando(true)}
+          onPress={() => (gasto.serie ? setEscopoPara('excluir') : setConfirmando(true))}
         />
       )}
       <ConfirmDialog
@@ -280,9 +450,17 @@ function Formulario({ titulo, categorias, cartoes, gasto, onConcluido, onVoltar 
         message="O gasto deixa de aparecer na lista e nos totais."
         confirmLabel="Excluir"
         loading={excluir.isPending}
-        onConfirm={confirmarExclusao}
+        onConfirm={() => excluirGasto()}
         onCancel={() => setConfirmando(false)}
       />
+      {posicao && (
+        <EscopoSerieDialog
+          acao={escopoPara}
+          posicao={posicao}
+          onEscolher={escolherEscopo}
+          onCancel={() => setEscopoPara(null)}
+        />
+      )}
     </Screen>
   );
 }
@@ -299,6 +477,31 @@ function faturaPrevista(cartoes: readonly Cartao[], cartaoId: string, data: stri
   if (!c || !iso) return null;
   const mes = mesDaFatura(iso, c.diaFechamento, c.diaVencimento);
   return mes ? rotuloCurtoDoMes(mes) : null;
+}
+
+/** Mês de referência (AAAA-MM) da compra: o da fatura, ou o da data. */
+function mesDaCompra(cartoes: readonly Cartao[], cartaoId: string, data: string): string | null {
+  const iso = brParaISO(data);
+  if (!iso) return null;
+  const c = cartoes.find((x) => x.id === cartaoId);
+  return c ? mesDaFatura(iso, c.diaFechamento, c.diaVencimento) : iso.slice(0, 7);
+}
+
+/** "3× de R$ 400,00 · dez/2026 a fev/2027", com a 1ª diferente se houver resto. */
+function textoDaPrevia(p: ReturnType<typeof previaParcelas>): string | null {
+  if (!p || !p.primeiroMes) return null;
+  const meses = `${rotuloCurtoDoMes(p.primeiroMes)} a ${rotuloCurtoDoMes(p.ultimoMes)}`;
+  const valores =
+    p.valorPrimeira === p.valorParcela
+      ? `${p.criadas}× de ${formatarCentavos(p.valorParcela)}`
+      : `1ª de ${formatarCentavos(p.valorPrimeira)} e ${p.criadas - 1}× de ${formatarCentavos(p.valorParcela)}`;
+  return `${valores} · ${meses}`;
+}
+
+/** "Parcela 3/10" ou "Recorrente". */
+function posicaoDaSerie(g: Gasto): string {
+  const selo = seloDaSerie(g.serie) ?? '';
+  return g.serie?.tipo === 'PARCELAMENTO' ? `Parcela ${selo}` : selo;
 }
 
 function secoes(cats: CategoriasPorGrupo): SecaoSelect[] {
@@ -321,4 +524,7 @@ const styles = StyleSheet.create({
     marginTop: -tokens.space.sm,
   },
   selo: { alignSelf: 'center' },
+  linha: { flexDirection: 'row', gap: tokens.space.md },
+  metade: { flex: 1 },
+  previa: { fontWeight: tokens.font.weight.semibold },
 });

@@ -50,6 +50,7 @@ type GastoApi = {
   cartao?: { id: string; apelido: string; cor: string };
   descricao?: string;
   recorrente: boolean;
+  serie?: { id: string; tipo: 'PARCELAMENTO' | 'RECORRENCIA'; numero: number; total?: number };
 };
 
 const almoco: GastoApi = {
@@ -243,9 +244,12 @@ describe('GastosView', () => {
 function bffDoFormulario(gasto?: GastoApi) {
   const corpos: Record<string, unknown>[] = [];
   const excluidos: string[] = [];
+  /** Escopo de cada PUT e DELETE, "" quando não veio. */
+  const escopos: string[] = [];
   return {
     corpos,
     excluidos,
+    escopos,
     handlers: [
       http.get(`${BFF}/telas/gasto-form`, ({ request }) => {
         const id = new URL(request.url).searchParams.get('id');
@@ -276,6 +280,7 @@ function bffDoFormulario(gasto?: GastoApi) {
       http.put(`${BFF}/gastos/:id`, async ({ request }) => {
         const corpo = (await request.json()) as Record<string, unknown>;
         corpos.push(corpo);
+        escopos.push(new URL(request.url).searchParams.get('escopo') ?? '');
         return HttpResponse.json({
           ...gasto,
           ...corpo,
@@ -284,8 +289,9 @@ function bffDoFormulario(gasto?: GastoApi) {
           categoria: resumo(aluguel),
         });
       }),
-      http.delete(`${BFF}/gastos/:id`, ({ params }) => {
+      http.delete(`${BFF}/gastos/:id`, ({ params, request }) => {
         excluidos.push(params.id as string);
+        escopos.push(new URL(request.url).searchParams.get('escopo') ?? '');
         return new HttpResponse(null, { status: 204 });
       }),
     ],
@@ -325,6 +331,7 @@ describe('GastoForm', () => {
       descricao: 'Almoço',
       recorrente: false,
       cartaoId: nubank.id,
+      chaveIdempotencia: expect.any(String),
     });
   });
 
@@ -370,15 +377,16 @@ describe('GastoForm', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Categoria: Escolha a categoria' }));
     await fireEvent.press(screen.getByRole('radio', { name: 'Aluguel' }));
     expect(screen.getByText('Fixo')).toBeOnTheScreen();
-    await fireEvent(screen.getByLabelText('Gasto recorrente'), 'valueChange', true);
+    await fireEvent.press(screen.getByRole('radio', { name: 'Recorrente' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Salvar gasto' }));
 
     await waitFor(() => expect(bff.corpos).toHaveLength(1));
     expect(bff.corpos[0]).toMatchObject({
       valorCentavos: 150000,
       categoriaId: 'aluguel',
-      recorrente: true,
+      recorrencia: {},
     });
+    expect(bff.corpos[0]).not.toHaveProperty('parcelamento');
     expect(bff.corpos[0]).not.toHaveProperty('descricao');
     expect(bff.corpos[0]).not.toHaveProperty('grupo');
   });
@@ -481,6 +489,176 @@ describe('GastoForm', () => {
     expect(await screen.findByRole('header', { name: 'Novo gasto' })).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: 'Excluir gasto' })).toBeNull();
     expect(screen.getByLabelText('Data').props.value).toMatch(/^\d{2}\/\d{2}\/\d{4}$/);
+  });
+});
+
+// Spec parcelamentos-recorrencias no app.
+const geladeira2: GastoApi = {
+  id: '202701-20261210-01JC8Z6Q3N4W5X6Y7Z8A9B0C2A',
+  valorCentavos: 40000,
+  data: '2026-12-10',
+  mesReferencia: '2027-01',
+  grupo: 'CARTAO',
+  categoria: resumo(alimentacao),
+  cartao: { id: nubank.id, apelido: nubank.apelido, cor: nubank.cor },
+  descricao: 'Geladeira',
+  recorrente: false,
+  serie: { id: 'S1', tipo: 'PARCELAMENTO', numero: 2, total: 3 },
+};
+const luzDez: GastoApi = {
+  id: '202612-20261205-01JC8Z6Q3N4W5X6Y7Z8A9B0C2B',
+  valorCentavos: 20000,
+  data: '2026-12-05',
+  mesReferencia: '2026-12',
+  grupo: 'FIXO',
+  categoria: resumo(aluguel),
+  descricao: 'Luz',
+  recorrente: true,
+  serie: { id: 'S2', tipo: 'RECORRENCIA', numero: 2 },
+};
+
+async function preencherCompra(valor: string, rotulo = 'Valor') {
+  await fireEvent.changeText(await screen.findByLabelText(rotulo), valor);
+  await fireEvent.press(screen.getByRole('button', { name: 'Categoria: Escolha a categoria' }));
+  await fireEvent.press(screen.getByRole('radio', { name: 'Alimentação' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Cartão: Escolha o cartão' }));
+  await fireEvent.press(screen.getByRole('radio', { name: 'Nubank' }));
+  await fireEvent.changeText(screen.getByLabelText('Data'), '10112026');
+}
+
+describe('Parcelamentos e recorrências', () => {
+  it('parcelado pelo total, com prévia (spec, "Divisão exata")', async () => {
+    const bff = bffDoFormulario();
+    server.use(...bff.handlers);
+    await renderizar(<GastoForm onConcluido={jest.fn()} onVoltar={jest.fn()} />);
+
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Parcelado' }));
+    expect(screen.getByLabelText('Valor total')).toBeOnTheScreen();
+    await preencherCompra('120000', 'Valor total');
+    await fireEvent.changeText(screen.getByLabelText('Parcelas'), '3');
+    expect(screen.getByTestId('previa-parcelas')).toHaveTextContent(
+      '3× de R$ 400,00 · dez/2026 a fev/2027',
+    );
+    await fireEvent.press(screen.getByRole('button', { name: 'Salvar gasto' }));
+
+    await waitFor(() => expect(bff.corpos).toHaveLength(1));
+    expect(bff.corpos[0]).toMatchObject({
+      valorCentavos: 120000,
+      parcelamento: { modo: 'TOTAL', parcelas: 3 },
+      chaveIdempotencia: expect.any(String),
+    });
+  });
+
+  it('prévia com resto na 1ª parcela (spec, "Divisão com resto")', async () => {
+    server.use(...bffDoFormulario().handlers);
+    await renderizar(<GastoForm onConcluido={jest.fn()} onVoltar={jest.fn()} />);
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Parcelado' }));
+    await preencherCompra('10000', 'Valor total');
+    await fireEvent.changeText(screen.getByLabelText('Parcelas'), '3');
+    expect(screen.getByTestId('previa-parcelas')).toHaveTextContent(
+      '1ª de R$ 33,34 e 2× de R$ 33,33 · dez/2026 a fev/2027',
+    );
+  });
+
+  it('parcelado em andamento pela parcela (spec, "Compra em andamento")', async () => {
+    const bff = bffDoFormulario();
+    server.use(...bff.handlers);
+    await renderizar(<GastoForm onConcluido={jest.fn()} onVoltar={jest.fn()} />);
+
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Parcelado' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Pela parcela' }));
+    await preencherCompra('19990', 'Valor da parcela');
+    await fireEvent.changeText(screen.getByLabelText('Parcela atual'), '3');
+    await fireEvent.changeText(screen.getByLabelText('Total de parcelas'), '10');
+    expect(screen.getByTestId('previa-parcelas')).toHaveTextContent(
+      '8× de R$ 199,90 · dez/2026 a jul/2027',
+    );
+    await fireEvent.press(screen.getByRole('button', { name: 'Salvar gasto' }));
+    await waitFor(() => expect(bff.corpos).toHaveLength(1));
+    expect(bff.corpos[0]).toMatchObject({
+      valorCentavos: 19990,
+      parcelamento: { modo: 'PARCELA', parcelaAtual: 3, parcelas: 10 },
+    });
+  });
+
+  it('parcela atual maior que o total é recusada no cliente', async () => {
+    const bff = bffDoFormulario();
+    server.use(...bff.handlers);
+    await renderizar(<GastoForm onConcluido={jest.fn()} onVoltar={jest.fn()} />);
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Parcelado' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Pela parcela' }));
+    await preencherCompra('100', 'Valor da parcela');
+    await fireEvent.changeText(screen.getByLabelText('Parcela atual'), '11');
+    await fireEvent.changeText(screen.getByLabelText('Total de parcelas'), '10');
+    await fireEvent.press(screen.getByRole('button', { name: 'Salvar gasto' }));
+    expect(await screen.findByText('A parcela atual não pode passar do total.')).toBeOnTheScreen();
+    expect(bff.corpos).toHaveLength(0);
+  });
+
+  it('recorrente com mês final', async () => {
+    const bff = bffDoFormulario();
+    server.use(...bff.handlers);
+    await renderizar(<GastoForm onConcluido={jest.fn()} onVoltar={jest.fn()} />);
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Recorrente' }));
+    await preencherCompra('5590');
+    await fireEvent.changeText(screen.getByLabelText('Mês final (opcional)'), '032027');
+    await fireEvent.press(screen.getByRole('button', { name: 'Salvar gasto' }));
+    await waitFor(() => expect(bff.corpos).toHaveLength(1));
+    expect(bff.corpos[0]).toMatchObject({ recorrencia: { mesFinal: '2027-03' } });
+  });
+
+  it('editar parcela pede o alcance e envia o escolhido (spec, "Editar item de série")', async () => {
+    const bff = bffDoFormulario(geladeira2);
+    server.use(...bff.handlers);
+    const onConcluido = jest.fn();
+    await renderizar(
+      <GastoForm id={geladeira2.id} onConcluido={onConcluido} onVoltar={jest.fn()} />,
+    );
+
+    expect(await screen.findByText('Parcela 2/3')).toBeOnTheScreen();
+    // Na edição não se escolhe à vista/parcelado/recorrente.
+    expect(screen.queryByRole('radio', { name: 'Parcelado' })).toBeNull();
+    await fireEvent.changeText(screen.getByLabelText('Descrição'), 'Geladeira nova');
+    await fireEvent.press(screen.getByRole('button', { name: 'Salvar gasto' }));
+    expect(await screen.findByText('Alterar quais gastos?')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Esta e as próximas' }));
+
+    await waitFor(() => expect(onConcluido).toHaveBeenCalled());
+    expect(bff.escopos).toEqual(['PROXIMAS']);
+    expect(bff.corpos[0]).toMatchObject({ descricao: 'Geladeira nova' });
+    expect(bff.corpos[0]).not.toHaveProperty('parcelamento');
+  });
+
+  it('excluir ocorrência recorrente pede o alcance (spec, "Excluir item de série")', async () => {
+    const bff = bffDoFormulario(luzDez);
+    server.use(...bff.handlers);
+    const onConcluido = jest.fn();
+    await renderizar(<GastoForm id={luzDez.id} onConcluido={onConcluido} onVoltar={jest.fn()} />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Excluir gasto' }));
+    expect(screen.getByText('Excluir quais gastos?')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Só esta' }));
+
+    await waitFor(() => expect(onConcluido).toHaveBeenCalled());
+    expect(bff.excluidos).toEqual([luzDez.id]);
+    expect(bff.escopos).toEqual(['ESTA']);
+  });
+
+  it('cancelar o alcance não salva', async () => {
+    const bff = bffDoFormulario(luzDez);
+    server.use(...bff.handlers);
+    await renderizar(<GastoForm id={luzDez.id} onConcluido={jest.fn()} onVoltar={jest.fn()} />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Salvar gasto' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(bff.corpos).toHaveLength(0);
+  });
+
+  it('a lista mostra "2/3" e "Recorrente" (spec, "Identificação da parcela")', async () => {
+    server.use(bffDeLista([geladeira2, { ...luzDez, mesReferencia: '2027-01' }]).handler);
+    await renderizar(<GastosView onNovo={jest.fn()} onAbrir={jest.fn()} mesInicial="2027-01" />);
+    expect(await screen.findByText('2/3')).toBeOnTheScreen();
+    expect(screen.getByText('Recorrente')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: /^Geladeira 2\/3, / })).toBeOnTheScreen();
   });
 });
 

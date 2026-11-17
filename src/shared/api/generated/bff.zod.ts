@@ -24,7 +24,7 @@
  * - **Isolamento:** o usuário é sempre o do token. Recurso de outro usuário
  *   responde 404, como se não existisse.
  *
- * OpenAPI spec version: 0.2.0
+ * OpenAPI spec version: 0.3.0
  */
 import * as zod from 'zod';
 
@@ -118,6 +118,7 @@ export const obterTelaDashboardResponsePizzaCartoesItemDetalheItemTotalCentavosM
 export const obterTelaDashboardResponseUltimosItemMesReferenciaRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
 export const obterTelaDashboardResponseUltimosItemCategoriaCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const obterTelaDashboardResponseUltimosItemCartaoCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+
 export const obterTelaDashboardResponseUltimosMax = 5;
 
 
@@ -224,7 +225,14 @@ export const ObterTelaDashboardResponse = zod.object({
   "cor": zod.string().regex(obterTelaDashboardResponseUltimosItemCartaoCorRegExp)
 }).optional(),
   "descricao": zod.string().optional(),
-  "recorrente": zod.boolean()
+  "recorrente": zod.boolean(),
+  "serie": zod.object({
+  "id": zod.string(),
+  "tipo": zod.enum(['PARCELAMENTO', 'RECORRENCIA']),
+  "numero": zod.int().min(1),
+  "total": zod.int().optional().describe('Total de parcelas; ausente na recorrência.'),
+  "ajustado": zod.boolean().optional().describe('Editado com o alcance "só esta".')
+}).optional().describe('Posição do gasto num parcelamento ("3/10") ou numa recorrência.')
 }).describe('Gasto com a categoria e o cartão já resolvidos (nome e cor).')).max(obterTelaDashboardResponseUltimosMax).describe('Até 5 gastos mais recentes do mês.')
 })
 
@@ -261,6 +269,7 @@ export const obterTelaGastosResponseMesRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-
 export const obterTelaGastosResponseItensItemMesReferenciaRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
 export const obterTelaGastosResponseItensItemCategoriaCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const obterTelaGastosResponseItensItemCartaoCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+
 export const obterTelaGastosResponseCategoriasCARTAOItemCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const obterTelaGastosResponseCategoriasFIXOItemCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const obterTelaGastosResponseCartoesItemCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
@@ -291,7 +300,14 @@ export const ObterTelaGastosResponse = zod.object({
   "cor": zod.string().regex(obterTelaGastosResponseItensItemCartaoCorRegExp)
 }).optional(),
   "descricao": zod.string().optional(),
-  "recorrente": zod.boolean()
+  "recorrente": zod.boolean(),
+  "serie": zod.object({
+  "id": zod.string(),
+  "tipo": zod.enum(['PARCELAMENTO', 'RECORRENCIA']),
+  "numero": zod.int().min(1),
+  "total": zod.int().optional().describe('Total de parcelas; ausente na recorrência.'),
+  "ajustado": zod.boolean().optional().describe('Editado com o alcance "só esta".')
+}).optional().describe('Posição do gasto num parcelamento ("3/10") ou numa recorrência.')
 }).describe('Gasto com a categoria e o cartão já resolvidos (nome e cor).')),
   "nextCursor": zod.string().optional(),
   "categorias": zod.object({
@@ -351,6 +367,7 @@ export const obterTelaGastoFormResponseGastoCategoriaCorRegExp = new RegExp('^#[
 export const obterTelaGastoFormResponseGastoCartaoCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 
 
+
 export const ObterTelaGastoFormResponse = zod.object({
   "categorias": zod.object({
   "CARTAO": zod.array(zod.object({
@@ -394,7 +411,14 @@ export const ObterTelaGastoFormResponse = zod.object({
   "cor": zod.string().regex(obterTelaGastoFormResponseGastoCartaoCorRegExp)
 }).optional(),
   "descricao": zod.string().optional(),
-  "recorrente": zod.boolean()
+  "recorrente": zod.boolean(),
+  "serie": zod.object({
+  "id": zod.string(),
+  "tipo": zod.enum(['PARCELAMENTO', 'RECORRENCIA']),
+  "numero": zod.int().min(1),
+  "total": zod.int().optional().describe('Total de parcelas; ausente na recorrência.'),
+  "ajustado": zod.boolean().optional().describe('Editado com o alcance "só esta".')
+}).optional().describe('Posição do gasto num parcelamento ("3/10") ou numa recorrência.')
 }).optional().describe('Gasto com a categoria e o cartão já resolvidos (nome e cor).')
 })
 
@@ -403,6 +427,12 @@ export const ObterTelaGastoFormResponse = zod.object({
  * O grupo do gasto é o grupo da categoria escolhida. Categoria do grupo
  * `CARTAO` exige `cartaoId`; `FIXO` aceita cartão opcional. Com cartão,
  * o gasto entra no mês da fatura (`mesReferencia`).
+ *
+ * Com `parcelamento`, cria todas as parcelas e devolve a primeira; com
+ * `recorrencia`, cria a ocorrência do mês da data, e as dos meses
+ * seguintes aparecem ao abrir cada mês. Reenviar o mesmo lançamento com
+ * a mesma `chaveIdempotencia` devolve o gasto do primeiro envio sem
+ * criar nada.
  * @summary Lançar gasto
  */
 export const criarGastoBodyValorCentavosMax = 100000000;
@@ -414,6 +444,16 @@ export const criarGastoBodyDescricaoMax = 140;
 export const criarGastoBodyRecorrenteDefault = false;
 export const criarGastoBodyCartaoIdMax = 64;
 
+export const criarGastoBodyParcelamentoParcelasMin = 2;
+export const criarGastoBodyParcelamentoParcelasMax = 72;
+
+export const criarGastoBodyParcelamentoParcelaAtualDefault = 1;
+export const criarGastoBodyParcelamentoParcelaAtualMax = 72;
+
+export const criarGastoBodyParcelamentoMesFinalRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+export const criarGastoBodyRecorrenciaMesFinalRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+export const criarGastoBodyChaveIdempotenciaMax = 128;
+
 
 
 export const CriarGastoBody = zod.object({
@@ -421,13 +461,24 @@ export const CriarGastoBody = zod.object({
   "data": zod.iso.date(),
   "categoriaId": zod.string().min(1).max(criarGastoBodyCategoriaIdMax),
   "descricao": zod.string().max(criarGastoBodyDescricaoMax).optional(),
-  "recorrente": zod.boolean().default(criarGastoBodyRecorrenteDefault).describe('Só informativo no MVP'),
-  "cartaoId": zod.string().min(1).max(criarGastoBodyCartaoIdMax).optional().describe('Cartão ativo do usuário. Obrigatório para categoria do grupo `CARTAO`; opcional para `FIXO`.')
+  "recorrente": zod.boolean().default(criarGastoBodyRecorrenteDefault).describe('Informativo, dos gastos anteriores às séries. Para repetir o gasto, use `recorrencia`.'),
+  "cartaoId": zod.string().min(1).max(criarGastoBodyCartaoIdMax).optional().describe('Cartão ativo do usuário. Obrigatório para categoria do grupo `CARTAO`; opcional para `FIXO`.'),
+  "parcelamento": zod.object({
+  "modo": zod.enum(['TOTAL', 'PARCELA']),
+  "parcelas": zod.int().min(criarGastoBodyParcelamentoParcelasMin).max(criarGastoBodyParcelamentoParcelasMax).optional(),
+  "parcelaAtual": zod.int().min(1).max(criarGastoBodyParcelamentoParcelaAtualMax).default(criarGastoBodyParcelamentoParcelaAtualDefault),
+  "mesFinal": zod.string().regex(criarGastoBodyParcelamentoMesFinalRegExp).optional()
+}).optional().describe('Só no POST, sem `recorrencia`. No modo `TOTAL`, `valorCentavos` é o\ntotal, dividido em `parcelas` com o resto na 1ª. No modo `PARCELA`,\n`valorCentavos` é o valor de cada parcela, da `parcelaAtual` até\n`parcelas` ou até o `mesFinal` (mês da fatura da última parcela).\n'),
+  "recorrencia": zod.object({
+  "mesFinal": zod.string().regex(criarGastoBodyRecorrenciaMesFinalRegExp).optional()
+}).optional().describe('Só no POST, sem `parcelamento`. O gasto se repete todo mês, no mesmo dia, até o `mesFinal` (mês da data da última ocorrência) ou até ser encerrado.'),
+  "chaveIdempotencia": zod.string().min(1).max(criarGastoBodyChaveIdempotenciaMax).optional().describe('Gerada pelo app a cada envio do formulário; repetir o envio não duplica o lançamento. Só no POST.')
 })
 
 export const criarGastoResponseMesReferenciaRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
 export const criarGastoResponseCategoriaCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const criarGastoResponseCartaoCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+
 
 
 export const CriarGastoResponse = zod.object({
@@ -447,7 +498,14 @@ export const CriarGastoResponse = zod.object({
   "cor": zod.string().regex(criarGastoResponseCartaoCorRegExp)
 }).optional(),
   "descricao": zod.string().optional(),
-  "recorrente": zod.boolean()
+  "recorrente": zod.boolean(),
+  "serie": zod.object({
+  "id": zod.string(),
+  "tipo": zod.enum(['PARCELAMENTO', 'RECORRENCIA']),
+  "numero": zod.int().min(1),
+  "total": zod.int().optional().describe('Total de parcelas; ausente na recorrência.'),
+  "ajustado": zod.boolean().optional().describe('Editado com o alcance "só esta".')
+}).optional().describe('Posição do gasto num parcelamento ("3/10") ou numa recorrência.')
 }).describe('Gasto com a categoria e o cartão já resolvidos (nome e cor).')
 
 
@@ -455,6 +513,11 @@ export const CriarGastoResponse = zod.object({
  * Mesmas validações do lançamento. Trocar a categoria pode trocar o
  * grupo; trocar a data ou o cartão recalcula o mês de referência e pode
  * mudar o `id` do gasto. Manter o cartão atual vale mesmo arquivado.
+ *
+ * Num gasto de série, `escopo` é obrigatório (422 no campo `escopo`).
+ * Com `PROXIMAS` ou `TODAS`, só o dia da data vale para a série; mudar
+ * o mês é 422 no campo `data`. `parcelamento`, `recorrencia` e
+ * `chaveIdempotencia` são ignorados na edição.
  * @summary Editar gasto
  */
 export const atualizarGastoPathIdMax = 64;
@@ -463,6 +526,10 @@ export const atualizarGastoPathIdMax = 64;
 
 export const AtualizarGastoParams = zod.object({
   "id": zod.string().min(1).max(atualizarGastoPathIdMax)
+})
+
+export const AtualizarGastoQueryParams = zod.object({
+  "escopo": zod.enum(['ESTA', 'PROXIMAS', 'TODAS']).optional().describe('Alcance num parcelamento ou recorrência: `ESTA` (só este gasto, que\nfica ajustado), `PROXIMAS` (este e os seguintes) ou `TODAS`.\nObrigatório num gasto de série; ignorado no gasto avulso.\n')
 })
 
 export const atualizarGastoBodyValorCentavosMax = 100000000;
@@ -474,6 +541,16 @@ export const atualizarGastoBodyDescricaoMax = 140;
 export const atualizarGastoBodyRecorrenteDefault = false;
 export const atualizarGastoBodyCartaoIdMax = 64;
 
+export const atualizarGastoBodyParcelamentoParcelasMin = 2;
+export const atualizarGastoBodyParcelamentoParcelasMax = 72;
+
+export const atualizarGastoBodyParcelamentoParcelaAtualDefault = 1;
+export const atualizarGastoBodyParcelamentoParcelaAtualMax = 72;
+
+export const atualizarGastoBodyParcelamentoMesFinalRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+export const atualizarGastoBodyRecorrenciaMesFinalRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+export const atualizarGastoBodyChaveIdempotenciaMax = 128;
+
 
 
 export const AtualizarGastoBody = zod.object({
@@ -481,13 +558,24 @@ export const AtualizarGastoBody = zod.object({
   "data": zod.iso.date(),
   "categoriaId": zod.string().min(1).max(atualizarGastoBodyCategoriaIdMax),
   "descricao": zod.string().max(atualizarGastoBodyDescricaoMax).optional(),
-  "recorrente": zod.boolean().default(atualizarGastoBodyRecorrenteDefault).describe('Só informativo no MVP'),
-  "cartaoId": zod.string().min(1).max(atualizarGastoBodyCartaoIdMax).optional().describe('Cartão ativo do usuário. Obrigatório para categoria do grupo `CARTAO`; opcional para `FIXO`.')
+  "recorrente": zod.boolean().default(atualizarGastoBodyRecorrenteDefault).describe('Informativo, dos gastos anteriores às séries. Para repetir o gasto, use `recorrencia`.'),
+  "cartaoId": zod.string().min(1).max(atualizarGastoBodyCartaoIdMax).optional().describe('Cartão ativo do usuário. Obrigatório para categoria do grupo `CARTAO`; opcional para `FIXO`.'),
+  "parcelamento": zod.object({
+  "modo": zod.enum(['TOTAL', 'PARCELA']),
+  "parcelas": zod.int().min(atualizarGastoBodyParcelamentoParcelasMin).max(atualizarGastoBodyParcelamentoParcelasMax).optional(),
+  "parcelaAtual": zod.int().min(1).max(atualizarGastoBodyParcelamentoParcelaAtualMax).default(atualizarGastoBodyParcelamentoParcelaAtualDefault),
+  "mesFinal": zod.string().regex(atualizarGastoBodyParcelamentoMesFinalRegExp).optional()
+}).optional().describe('Só no POST, sem `recorrencia`. No modo `TOTAL`, `valorCentavos` é o\ntotal, dividido em `parcelas` com o resto na 1ª. No modo `PARCELA`,\n`valorCentavos` é o valor de cada parcela, da `parcelaAtual` até\n`parcelas` ou até o `mesFinal` (mês da fatura da última parcela).\n'),
+  "recorrencia": zod.object({
+  "mesFinal": zod.string().regex(atualizarGastoBodyRecorrenciaMesFinalRegExp).optional()
+}).optional().describe('Só no POST, sem `parcelamento`. O gasto se repete todo mês, no mesmo dia, até o `mesFinal` (mês da data da última ocorrência) ou até ser encerrado.'),
+  "chaveIdempotencia": zod.string().min(1).max(atualizarGastoBodyChaveIdempotenciaMax).optional().describe('Gerada pelo app a cada envio do formulário; repetir o envio não duplica o lançamento. Só no POST.')
 })
 
 export const atualizarGastoResponseMesReferenciaRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
 export const atualizarGastoResponseCategoriaCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const atualizarGastoResponseCartaoCorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+
 
 
 export const AtualizarGastoResponse = zod.object({
@@ -507,11 +595,20 @@ export const AtualizarGastoResponse = zod.object({
   "cor": zod.string().regex(atualizarGastoResponseCartaoCorRegExp)
 }).optional(),
   "descricao": zod.string().optional(),
-  "recorrente": zod.boolean()
+  "recorrente": zod.boolean(),
+  "serie": zod.object({
+  "id": zod.string(),
+  "tipo": zod.enum(['PARCELAMENTO', 'RECORRENCIA']),
+  "numero": zod.int().min(1),
+  "total": zod.int().optional().describe('Total de parcelas; ausente na recorrência.'),
+  "ajustado": zod.boolean().optional().describe('Editado com o alcance "só esta".')
+}).optional().describe('Posição do gasto num parcelamento ("3/10") ou numa recorrência.')
 }).describe('Gasto com a categoria e o cartão já resolvidos (nome e cor).')
 
 
 /**
+ * Num gasto de série, `escopo` é obrigatório: `PROXIMAS` apaga este e os
+ * seguintes (encerra a recorrência) e `TODAS` apaga a série inteira.
  * @summary Excluir gasto
  */
 export const excluirGastoPathIdMax = 64;
@@ -520,6 +617,10 @@ export const excluirGastoPathIdMax = 64;
 
 export const ExcluirGastoParams = zod.object({
   "id": zod.string().min(1).max(excluirGastoPathIdMax)
+})
+
+export const ExcluirGastoQueryParams = zod.object({
+  "escopo": zod.enum(['ESTA', 'PROXIMAS', 'TODAS']).optional().describe('Alcance num parcelamento ou recorrência: `ESTA` (só este gasto, que\nfica ajustado), `PROXIMAS` (este e os seguintes) ou `TODAS`.\nObrigatório num gasto de série; ignorado no gasto avulso.\n')
 })
 
 export const ExcluirGastoResponse = zod.void()

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { Badge } from './Badge';
 import { Icon, type IconName } from './Icon';
 import { Text } from './Text';
 import { tokens } from './tokens';
@@ -18,6 +19,8 @@ type Props = {
   icone: IconName;
   onPress: () => void;
   accessibilityHint?: string;
+  /** Selo curto ao lado do título, como "3/10" ou "Recorrente". */
+  selo?: string | null;
 };
 
 export function ExpenseItem({
@@ -28,11 +31,12 @@ export function ExpenseItem({
   icone,
   onPress,
   accessibilityHint,
+  selo,
 }: Props) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${titulo}, ${detalhe}, ${valor}`}
+      accessibilityLabel={`${titulo}${selo ? ` ${selo}` : ''}, ${detalhe}, ${valor}`}
       accessibilityHint={accessibilityHint}
       onPress={onPress}
       style={({ pressed }) => [styles.item, pressed && styles.pressionado]}
@@ -42,9 +46,12 @@ export function ExpenseItem({
         <Icon name={icone} colorValue={cor} size={tokens.size.iconSm} />
       </View>
       <View style={styles.textos}>
-        <Text variant="body" numberOfLines={1} style={styles.titulo}>
-          {titulo}
-        </Text>
+        <View style={styles.linhaTitulo}>
+          <Text variant="body" numberOfLines={1} style={styles.titulo}>
+            {titulo}
+          </Text>
+          {selo ? <Badge label={selo} tone="neutral" /> : null}
+        </View>
         <Text variant="caption" color="textMuted" numberOfLines={1}>
           {detalhe}
         </Text>
@@ -88,6 +95,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   textos: { flex: 1, gap: tokens.space.xxs },
-  titulo: { fontWeight: tokens.font.weight.semibold },
+  linhaTitulo: { flexDirection: 'row', alignItems: 'center', gap: tokens.space.xs },
+  titulo: { flexShrink: 1, fontWeight: tokens.font.weight.semibold },
   valor: { fontWeight: tokens.font.weight.bold },
 });

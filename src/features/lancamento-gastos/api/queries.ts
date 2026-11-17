@@ -2,7 +2,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 
 import { ApiError, bff, bffSchemas } from '@/shared/api';
 
-import type { FiltrosGastos, Gasto, GastoIn } from '../model/gasto';
+import type { Escopo, FiltrosGastos, Gasto, GastoIn } from '../model/gasto';
 
 export const gastosKeys = {
   all: ['gastos'] as const,
@@ -71,20 +71,25 @@ export function useCriarGasto() {
   });
 }
 
-/** Edita um gasto. Se a data mudar, o gasto devolvido tem outro id. */
+/**
+ * Edita um gasto. Se a data mudar, o gasto devolvido tem outro id. Num gasto
+ * de série, o escopo diz o alcance.
+ */
 export function useAtualizarGasto(id: string) {
   const invalidar = useInvalidarGastos();
-  return useMutation<Gasto, ApiError, GastoIn>({
-    mutationFn: async (dados) =>
-      bffSchemas.AtualizarGastoResponse.parse(await bff.atualizarGasto(id, dados)),
+  return useMutation<Gasto, ApiError, { dados: GastoIn; escopo?: Escopo }>({
+    mutationFn: async ({ dados, escopo }) =>
+      bffSchemas.AtualizarGastoResponse.parse(
+        await bff.atualizarGasto(id, dados, escopo ? { escopo } : undefined),
+      ),
     onSuccess: invalidar,
   });
 }
 
 export function useExcluirGasto() {
   const invalidar = useInvalidarGastos();
-  return useMutation<void, ApiError, string>({
-    mutationFn: (id) => bff.excluirGasto(id),
+  return useMutation<void, ApiError, { id: string; escopo?: Escopo }>({
+    mutationFn: ({ id, escopo }) => bff.excluirGasto(id, escopo ? { escopo } : undefined),
     onSuccess: invalidar,
   });
 }
