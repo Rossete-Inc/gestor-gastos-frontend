@@ -101,6 +101,8 @@ test('convite, lançamento como Editor, Leitor e saída da conta', async ({ brow
   });
 
   await test.step('a Ana vê o gasto lançado pelo Bruno e filtra por ele', async () => {
+    // A Ana ficou na tela de Colaboradores, que não tem a barra de abas.
+    await tocarVisivel(paginaAna, 'Voltar');
     await abrirAba(paginaAna, 'Gastos');
     const item = paginaAna.getByRole('button', {
       name: new RegExp(`^${descricao}, .*por ${nomeBruno}`),
