@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { useIniciarSessao } from '@/features/auth';
+import { useIniciarContaAtiva } from '@/features/colaboracao';
 import { queryClient } from '@/shared/api';
 import { prepararTelas } from '@/shared/platform';
 import { AvisosDoApp } from '@/shared/ui';
@@ -15,6 +16,7 @@ prepararTelas();
 // versão nova). As guardas ficam nos layouts dos grupos (auth) e (app).
 export default function RootLayout() {
   useIniciarSessao();
+  useIniciarContaAtiva();
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>

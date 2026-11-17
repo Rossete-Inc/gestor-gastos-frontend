@@ -17,7 +17,8 @@ type Props = {
   /** Cor da categoria (dado, não token de UI). */
   cor: string;
   icone: IconName;
-  onPress: () => void;
+  /** Sem onPress, o item só mostra (por exemplo, para o colaborador Leitor). */
+  onPress?: () => void;
   accessibilityHint?: string;
   /** Selo curto ao lado do título, como "3/10" ou "Recorrente". */
   selo?: string | null;
@@ -35,11 +36,12 @@ export function ExpenseItem({
 }: Props) {
   return (
     <Pressable
-      accessibilityRole="button"
+      accessibilityRole={onPress ? 'button' : 'text'}
       accessibilityLabel={`${titulo}${selo ? ` ${selo}` : ''}, ${detalhe}, ${valor}`}
-      accessibilityHint={accessibilityHint}
+      accessibilityHint={onPress ? accessibilityHint : undefined}
       onPress={onPress}
-      style={({ pressed }) => [styles.item, pressed && styles.pressionado]}
+      disabled={!onPress}
+      style={({ pressed }) => [styles.item, pressed && onPress && styles.pressionado]}
     >
       {/* Fundo na cor da categoria com 13% de opacidade. */}
       <View style={[styles.icone, { backgroundColor: `${cor}22` }]}>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { useMeuId } from '@/features/colaboracao';
 import { ApiError } from '@/shared/api';
 import { formatarCentavos, mesAtual, rotuloDoDia, rotuloDoMes } from '@/shared/lib';
 import {
@@ -25,6 +26,7 @@ import {
   ROTULO_DO_GRUPO,
   SEM_CARTAO,
   agruparPorDia,
+  autoria,
   type Cartao,
   type CategoriasPorGrupo,
   type FiltroGrupo,
@@ -33,8 +35,9 @@ import {
 } from '../model/gasto';
 
 type Props = {
-  onNovo: () => void;
-  onAbrir: (id: string) => void;
+  /** Sem onNovo e onAbrir, a lista só mostra (colaborador Leitor). */
+  onNovo?: () => void;
+  onAbrir?: (id: string) => void;
   /** Mês aberto ao entrar; padrão é o mês corrente no fuso do dispositivo. */
   mesInicial?: string;
   /** Cartão filtrado ao entrar, como na fatura aberta pela aba Cartões. */
@@ -43,6 +46,7 @@ type Props = {
 
 const TODAS = '';
 const TODOS_OS_CARTOES = '';
+const TODAS_AS_PESSOAS = '';
 
 // Tela Gastos (spec lancamento-gastos, "Listagem de gastos"): mês de
 // referência, filtros por grupo, categoria e cartão, lista do mais recente
@@ -52,17 +56,25 @@ export function GastosView({ onNovo, onAbrir, mesInicial, cartaoInicial }: Props
   const [grupo, setGrupo] = useState<FiltroGrupo>('TODOS');
   const [categoriaId, setCategoriaId] = useState(TODAS);
   const [cartaoId, setCartaoId] = useState(cartaoInicial ?? TODOS_OS_CARTOES);
+  const [autorId, setAutorId] = useState(TODAS_AS_PESSOAS);
+  const meuId = useMeuId();
 
   const gastos = useTelaGastos({
     mes,
     ...(grupo !== 'TODOS' ? { grupo } : {}),
     ...(categoriaId ? { categoriaId } : {}),
     ...(cartaoId ? { cartaoId } : {}),
+    ...(autorId ? { autorId } : {}),
   });
 
-  // As categorias e os cartões vêm com a página e não mudam com o filtro.
+  // As categorias, os cartões e as pessoas vêm com a página e não mudam com
+  // o filtro.
   const categorias = gastos.data?.pages[0]?.categorias;
   const cartoes = gastos.data?.pages[0]?.cartoes;
+  const pessoas = gastos.data?.pages[0]?.pessoas;
+  // A pessoa escolhida continua no filtro enquanto a página nova carrega.
+  const [ultimasPessoas, setUltimasPessoas] = useState(pessoas);
+  if (pessoas && pessoas !== ultimasPessoas) setUltimasPessoas(pessoas);
   const itens = gastos.data?.pages.flatMap((p) => p.itens) ?? [];
 
   const trocarGrupo = (g: FiltroGrupo) => {
@@ -74,7 +86,7 @@ export function GastosView({ onNovo, onAbrir, mesInicial, cartaoInicial }: Props
   };
 
   return (
-    <Screen title="Gastos" overlay={<Fab label="Novo gasto" onPress={onNovo} />}>
+    <Screen title="Gastos" overlay={onNovo && <Fab label="Novo gasto" onPress={onNovo} />}>
       <MonthSelector mes={mes} onChange={setMes} />
       <SegmentedControl
         label="Grupo"
@@ -94,6 +106,25 @@ export function GastosView({ onNovo, onAbrir, mesInicial, cartaoInicial }: Props
         secoes={secoesDeCartao(cartoes, cartaoId)}
         onChange={setCartaoId}
       />
+      {/* Filtro "Pessoa" só numa conta com colaboradores (spec colaboracao). */}
+      {ultimasPessoas && ultimasPessoas.length > 1 && (
+        <Select
+          label="Pessoa"
+          valor={autorId}
+          secoes={[
+            {
+              opcoes: [
+                { valor: TODAS_AS_PESSOAS, label: 'Todas as pessoas' },
+                ...ultimasPessoas.map((p) => ({
+                  valor: p.id,
+                  label: p.id === meuId ? `${p.nome} (você)` : p.nome,
+                })),
+              ],
+            },
+          ]}
+          onChange={setAutorId}
+        />
+      )}
       {gastos.isPending ? (
         <Text color="textMuted" accessibilityRole="progressbar">
           Carregando gastos…
@@ -107,7 +138,7 @@ export function GastosView({ onNovo, onAbrir, mesInicial, cartaoInicial }: Props
       ) : itens.length === 0 ? (
         <Vazio
           mes={mes}
-          filtrado={grupo !== 'TODOS' || !!categoriaId || !!cartaoId}
+          filtrado={grupo !== 'TODOS' || !!categoriaId || !!cartaoId || !!autorId}
           onNovo={onNovo}
         />
       ) : (
@@ -119,7 +150,12 @@ export function GastosView({ onNovo, onAbrir, mesInicial, cartaoInicial }: Props
               </Text>
               <ExpenseList>
                 {dia.gastos.map((g) => (
-                  <ItemGasto key={g.id} gasto={g} onPress={() => onAbrir(g.id)} />
+                  <ItemGasto
+                    key={g.id}
+                    gasto={g}
+                    meuId={meuId}
+                    {...(onAbrir ? { onPress: () => onAbrir(g.id) } : {})}
+                  />
                 ))}
               </ExpenseList>
             </View>
@@ -186,12 +222,22 @@ function secoesDeCartao(cartoes: readonly Cartao[] | undefined, atual: string): 
   ];
 }
 
-function ItemGasto({ gasto, onPress }: { gasto: Gasto; onPress: () => void }) {
+function ItemGasto({
+  gasto,
+  meuId,
+  onPress,
+}: {
+  gasto: Gasto;
+  meuId: string | undefined;
+  onPress?: () => void;
+}) {
+  const autor = autoria(gasto, meuId);
   const partes = [
     gasto.categoria.nome,
     ...(gasto.cartao ? [gasto.cartao.apelido] : []),
     // Na série, o selo ao lado do título já diz "Recorrente" ou "n/N".
     ...(gasto.recorrente && !gasto.serie ? ['recorrente'] : []),
+    ...(autor ? [autor] : []),
   ];
   return (
     <ExpenseItem
@@ -201,14 +247,14 @@ function ItemGasto({ gasto, onPress }: { gasto: Gasto; onPress: () => void }) {
       cor={gasto.categoria.cor}
       icone={gasto.grupo === 'FIXO' ? 'repeat' : 'credit-card'}
       accessibilityHint="Abre o gasto para editar ou excluir"
-      onPress={onPress}
+      {...(onPress ? { onPress } : {})}
       selo={seloDaSerie(gasto.serie)}
     />
   );
 }
 
 // Cenário "Mês sem gastos": estado vazio com atalho para lançar um gasto.
-function Vazio({ mes, filtrado, onNovo }: { mes: string; filtrado: boolean; onNovo: () => void }) {
+function Vazio({ mes, filtrado, onNovo }: { mes: string; filtrado: boolean; onNovo?: () => void }) {
   return (
     <View style={styles.vazio}>
       <Icon name="inbox" color="textSubtle" size={tokens.size.touch} />
@@ -217,7 +263,7 @@ function Vazio({ mes, filtrado, onNovo }: { mes: string; filtrado: boolean; onNo
           ? `Nenhum gasto com esses filtros em ${rotuloDoMes(mes).toLowerCase()}.`
           : `Nenhum gasto em ${rotuloDoMes(mes).toLowerCase()}.`}
       </Text>
-      <Button label="Lançar gasto" icon="plus" onPress={onNovo} />
+      {onNovo && <Button label="Lançar gasto" icon="plus" onPress={onNovo} />}
     </View>
   );
 }

@@ -29,6 +29,7 @@ export { MenuItem } from './MenuItem';
 export { PieChart } from './PieChart';
 export type { FatiaPie } from './PieChart';
 export { Screen } from './Screen';
+export { TopoDaTela } from './TopoDaTela';
 export { SegmentedControl } from './SegmentedControl';
 export type { Segmento } from './SegmentedControl';
 export { SummaryCard } from './SummaryCard';

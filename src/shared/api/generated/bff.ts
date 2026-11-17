@@ -23,8 +23,15 @@
  *   nos 422, `errors[]` por campo.
  * - **Isolamento:** o usuário é sempre o do token. Recurso de outro usuário
  *   responde 404, como se não existisse.
+ * - **Conta ativa (colaboradores):** as rotas de gastos, cartões,
+ *   categorias e telas aceitam o cabeçalho `X-Conta` com o `donoId` da
+ *   conta em que o usuário colabora. Sem ele, ou com o próprio ID, vale a
+ *   própria conta. Conta sem acesso responde 404 `conta_nao_encontrada`;
+ *   escrita de um colaborador `LEITOR` responde 403 `somente_leitura`. As
+ *   rotas `/colaboradores` são só do dono: com `X-Conta` alheio, 403
+ *   `somente_dono`.
  *
- * OpenAPI spec version: 0.3.0
+ * OpenAPI spec version: 0.4.0
  */
 import { httpMutator } from '../http';
 export interface FieldError {
@@ -260,6 +267,14 @@ export interface CartaoResumo {
 }
 
 /**
+ * Autor de gasto ou membro da conta. Autor sem perfil aparece como "Ex-colaborador".
+ */
+export interface Pessoa {
+  id: string;
+  nome: string;
+}
+
+/**
  * Gasto com a categoria e o cartão já resolvidos (nome e cor).
  */
 export interface Gasto {
@@ -273,6 +288,10 @@ export interface Gasto {
   descricao?: string;
   recorrente: boolean;
   serie?: SerieGasto;
+  /** Quem lançou; os gastos anteriores aos colaboradores são do dono. Só na lista de gastos e na resposta do POST e do PUT. */
+  lancadoPor?: Pessoa;
+  /** Quem editou por último; ausente se nunca foi editado depois dos colaboradores. */
+  editadoPor?: Pessoa;
 }
 
 /**
@@ -299,6 +318,8 @@ export interface TelaGastos {
   categorias: CategoriasPorGrupo;
   /** Todos os cartões, ativos e arquivados, para o filtro. */
   cartoes?: Cartao[];
+  /** O dono e os membros da conta, para o filtro por pessoa. */
+  pessoas?: Pessoa[];
 }
 
 export interface TelaGastoForm {
@@ -425,6 +446,84 @@ export interface TelaCartoes {
 }
 
 /**
+ * `EDITOR` faz tudo o que o dono faz com gastos, cartões e categorias; `LEITOR` só consulta.
+ */
+export type PapelConta = typeof PapelConta[keyof typeof PapelConta];
+
+
+export const PapelConta = {
+  DONO: 'DONO',
+  EDITOR: 'EDITOR',
+  LEITOR: 'LEITOR',
+} as const;
+
+export type PapelColaborador = typeof PapelColaborador[keyof typeof PapelColaborador];
+
+
+export const PapelColaborador = {
+  EDITOR: 'EDITOR',
+  LEITOR: 'LEITOR',
+} as const;
+
+export interface Conta {
+  /** Valor para o cabeçalho `X-Conta`. */
+  donoId: string;
+  nomeDono: string;
+  papel: PapelConta;
+}
+
+export interface ConviteRecebido {
+  donoId: string;
+  nomeDono: string;
+  papel: PapelColaborador;
+  criadoEm: string;
+}
+
+export interface TelaContas {
+  /**
+     * A própria conta primeiro, depois as contas em que o usuário colabora.
+     * @minItems 1
+     */
+  contas: Conta[];
+  convites: ConviteRecebido[];
+}
+
+export interface Colaborador {
+  userId: string;
+  nome: string;
+  email: string;
+  papel: PapelColaborador;
+  desde: string;
+}
+
+export interface ConviteEnviado {
+  email: string;
+  papel: PapelColaborador;
+  criadoEm: string;
+}
+
+export interface TelaColaboradores {
+  membros: Colaborador[];
+  /** Convites pendentes, que também ocupam vaga. */
+  convites: ConviteEnviado[];
+  /** Máximo de membros mais convites. */
+  limite: number;
+}
+
+export interface ConviteIn {
+  /**
+     * @minLength 1
+     * @maxLength 254
+     */
+  email: string;
+  papel: PapelColaborador;
+}
+
+export interface PapelIn {
+  papel: PapelColaborador;
+}
+
+/**
  * Requisição inválida (por exemplo, `cursor_invalido` ou parâmetro malformado)
  */
 export type BadRequestResponse = Problem;
@@ -435,12 +534,14 @@ export type BadRequestResponse = Problem;
 export type UnauthorizedResponse = Problem;
 
 /**
- * O usuário não tem o papel `admin`
+ * Sem permissão: rota `/admin/*` sem o papel `admin`, escrita de um
+ * colaborador `LEITOR` (`somente_leitura`) ou gestão de colaboradores
+ * fora da própria conta (`somente_dono`).
  */
 export type ForbiddenResponse = Problem;
 
 /**
- * Recurso inexistente ou de outro usuário
+ * Recurso inexistente, de outro usuário, ou conta ativa sem acesso (`conta_nao_encontrada`)
  */
 export type NotFoundResponse = Problem;
 
@@ -475,6 +576,11 @@ export const EscopoParameter = {
   TODAS: 'TODAS',
 } as const;
 
+/**
+ * `donoId` da conta ativa; ausente = a própria conta.
+ */
+export type XContaParameter = string;
+
 export type ObterTelaDashboardParams = {
   /**
    * Mês no formato AAAA-MM. O app envia o mês corrente no fuso do dispositivo.
@@ -501,6 +607,12 @@ export type ObterTelaGastosParams = {
    * @maxLength 64
    */
   cartaoId?: string;
+  /**
+   * Só os gastos lançados por esta pessoa; o dono inclui os gastos anteriores aos colaboradores.
+   * @minLength 1
+   * @maxLength 64
+   */
+  autorId?: string;
   /**
    * Valor de `nextCursor` da página anterior.
    * @minLength 1
@@ -1214,6 +1326,262 @@ export const getExcluirUsuarioUrl = (id: string,) => {
 export const excluirUsuario = async (id: string, options?: Parameters<typeof httpMutator>[1]): Promise<void> => {
 
   return httpMutator<void>(getExcluirUsuarioUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+export const getObterContasUrl = () => {
+
+
+
+
+  return `/contas`
+}
+
+/**
+ * A própria conta (papel `DONO`) primeiro, depois as contas em que o
+ * usuário colabora, e os convites pendentes para o e-mail verificado do
+ * token. Base do seletor de conta e do aviso de convites.
+ * @summary Contas do usuário e convites recebidos
+ */
+export const obterContas = async ( options?: Parameters<typeof httpMutator>[1]): Promise<TelaContas> => {
+
+  return httpMutator<TelaContas>(getObterContasUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export const getAceitarConviteUrl = (donoId: string,) => {
+
+
+
+
+  return `/contas/convites/${donoId}/aceitar`
+}
+
+/**
+ * Vale só para o e-mail verificado do token; convite de outro e-mail responde 404.
+ * @summary Aceitar convite
+ */
+export const aceitarConvite = async (donoId: string, options?: Parameters<typeof httpMutator>[1]): Promise<Conta> => {
+
+  return httpMutator<Conta>(getAceitarConviteUrl(donoId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+export const getRecusarConviteUrl = (donoId: string,) => {
+
+
+
+
+  return `/contas/convites/${donoId}/recusar`
+}
+
+/**
+ * Apaga o convite e libera a vaga.
+ * @summary Recusar convite
+ */
+export const recusarConvite = async (donoId: string, options?: Parameters<typeof httpMutator>[1]): Promise<void> => {
+
+  return httpMutator<void>(getRecusarConviteUrl(donoId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+export const getSairDaContaUrl = (donoId: string,) => {
+
+
+
+
+  return `/contas/${donoId}/participacao`
+}
+
+/**
+ * O colaborador deixa a conta; os gastos que lançou continuam nela.
+ * @summary Sair de uma conta
+ */
+export const sairDaConta = async (donoId: string, options?: Parameters<typeof httpMutator>[1]): Promise<void> => {
+
+  return httpMutator<void>(getSairDaContaUrl(donoId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+export const getListarColaboradoresUrl = () => {
+
+
+
+
+  return `/colaboradores`
+}
+
+/**
+ * Membros e convites pendentes, que juntos somam até `limite`.
+ * @summary Colaboradores da própria conta (dono)
+ */
+export const listarColaboradores = async ( options?: Parameters<typeof httpMutator>[1]): Promise<TelaColaboradores> => {
+
+  return httpMutator<TelaColaboradores>(getListarColaboradoresUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export const getConvidarUrl = () => {
+
+
+
+
+  return `/colaboradores`
+}
+
+/**
+ * O e-mail é comparado em minúsculas e sem espaços nas pontas. Não se
+ * convida o próprio e-mail. Nenhum e-mail de notificação é enviado.
+ * @summary Convidar colaborador (dono)
+ */
+export const convidar = async (conviteIn: ConviteIn, options?: Parameters<typeof httpMutator>[1]): Promise<ConviteEnviado> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return httpMutator<ConviteEnviado>(getConvidarUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(conviteIn)
+  }
+);}
+
+
+
+export const getMudarPapelUrl = (userId: string,) => {
+
+
+
+
+  return `/colaboradores/${userId}`
+}
+
+/**
+ * Vale na próxima requisição do colaborador, em até 10 segundos.
+ * @summary Mudar o papel de um colaborador (dono)
+ */
+export const mudarPapel = async (userId: string,
+    papelIn: PapelIn, options?: Parameters<typeof httpMutator>[1]): Promise<Colaborador> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return httpMutator<Colaborador>(getMudarPapelUrl(userId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(papelIn)
+  }
+);}
+
+
+
+export const getRemoverColaboradorUrl = (userId: string,) => {
+
+
+
+
+  return `/colaboradores/${userId}`
+}
+
+/**
+ * O acesso termina em até 10 segundos; os gastos que ele lançou continuam na conta.
+ * @summary Remover colaborador (dono)
+ */
+export const removerColaborador = async (userId: string, options?: Parameters<typeof httpMutator>[1]): Promise<void> => {
+
+  return httpMutator<void>(getRemoverColaboradorUrl(userId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+export const getCancelarConviteUrl = (email: string,) => {
+
+
+
+
+  return `/colaboradores/convites/${email}`
+}
+
+/**
+ * @summary Cancelar convite (dono)
+ */
+export const cancelarConvite = async (email: string, options?: Parameters<typeof httpMutator>[1]): Promise<void> => {
+
+  return httpMutator<void>(getCancelarConviteUrl(email),
   {
     ...options,
     method: 'DELETE'

@@ -43,6 +43,26 @@ export function configurarAutenticacao(a: Autenticacao | null): void {
   renovacaoEmAndamento = null;
 }
 
+/**
+ * Conta ativa registrada pela feature de colaboração (ADR 0010). O BFF lê a
+ * conta no cabeçalho X-Conta; sem ele, vale a própria conta do usuário.
+ */
+export type ContaHttp = {
+  /** donoId da conta alheia ativa, ou null para a própria conta. */
+  obterConta: () => string | null;
+  /** O BFF respondeu 404 conta_nao_encontrada: o acesso a donoId terminou. */
+  aoPerderConta: (donoId: string) => void;
+};
+
+/** Cabeçalho com o donoId da conta ativa. */
+export const CABECALHO_CONTA = 'X-Conta';
+
+let conta: ContaHttp | null = null;
+
+export function configurarConta(c: ContaHttp | null): void {
+  conta = c;
+}
+
 // Várias chamadas que recebem 401 ao mesmo tempo disparam uma única
 // renovação, e todas esperam o mesmo resultado.
 function renovarUmaVez(a: Autenticacao): Promise<boolean> {
@@ -55,9 +75,15 @@ function renovarUmaVez(a: Autenticacao): Promise<boolean> {
   return renovacaoEmAndamento;
 }
 
-async function enviar(url: string, init: RequestInit | undefined, token: string | null) {
+async function enviar(
+  url: string,
+  init: RequestInit | undefined,
+  token: string | null,
+  donoId: string | null,
+) {
   const headers = new Headers(init?.headers);
   if (token) headers.set('Authorization', `Bearer ${token}`);
+  if (donoId) headers.set(CABECALHO_CONTA, donoId);
   if (init?.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   try {
     return await fetch(`${env.apiUrl}${url}`, { ...init, headers });
@@ -84,22 +110,30 @@ async function erroDaResposta(res: Response): Promise<ApiError> {
 /**
  * Mutator do orval. Devolve o corpo de sucesso já decodificado (ou
  * undefined em 204) e lança ApiError em qualquer erro. Um 401 tenta renovar
- * a sessão uma vez e repete a chamada; se não der, encerra a sessão.
+ * a sessão uma vez e repete a chamada; se não der, encerra a sessão. Um 404
+ * conta_nao_encontrada numa conta alheia avisa que o acesso terminou.
  */
 export async function httpMutator<T>(url: string, init?: RequestInit): Promise<T> {
   const a = autenticacao;
-  let res = await enviar(url, init, a ? await a.obterToken() : null);
+  const donoId = conta?.obterConta() ?? null;
+  let res = await enviar(url, init, a ? await a.obterToken() : null, donoId);
 
   if (res.status === 401 && a) {
     if (await renovarUmaVez(a)) {
-      res = await enviar(url, init, await a.obterToken());
+      res = await enviar(url, init, await a.obterToken(), donoId);
     }
     if (res.status === 401) {
       a.aoExpirar();
     }
   }
 
-  if (!res.ok) throw await erroDaResposta(res);
+  if (!res.ok) {
+    const erro = await erroDaResposta(res);
+    if (donoId && erro.status === 404 && erro.code === 'conta_nao_encontrada') {
+      conta?.aoPerderConta(donoId);
+    }
+    throw erro;
+  }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }

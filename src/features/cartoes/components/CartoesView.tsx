@@ -9,8 +9,9 @@ import { useTelaCartoes } from '../api/queries';
 import { fracaoUsada, type ResumoCartao } from '../model/cartao';
 
 type Props = {
-  onNovo: () => void;
-  onEditar: (id: string) => void;
+  /** Sem onNovo e onEditar, a tela só mostra (colaborador Leitor). */
+  onNovo?: () => void;
+  onEditar?: (id: string) => void;
   /** Abre os gastos da fatura do cartão no mês (spec, "Detalhe do cartão"). */
   onAbrirFatura: (id: string, mes: string) => void;
   mesInicial?: string;
@@ -27,7 +28,7 @@ export function CartoesView({ onNovo, onEditar, onAbrirFatura, mesInicial }: Pro
   const arquivados = tela.data?.cartoes.filter((r) => r.cartao.arquivado) ?? [];
 
   return (
-    <Screen title="Cartões" overlay={<Fab label="Novo cartão" onPress={onNovo} />}>
+    <Screen title="Cartões" overlay={onNovo && <Fab label="Novo cartão" onPress={onNovo} />}>
       <MonthSelector mes={mes} onChange={setMes} />
       {tela.isPending ? (
         <Text color="textMuted" accessibilityRole="progressbar">
@@ -55,7 +56,7 @@ export function CartoesView({ onNovo, onEditar, onAbrirFatura, mesInicial }: Pro
               resumo={r}
               mes={mes}
               onAbrir={() => onAbrirFatura(r.cartao.id, mes)}
-              onEditar={() => onEditar(r.cartao.id)}
+              {...(onEditar ? { onEditar: () => onEditar(r.cartao.id) } : {})}
             />
           ))}
           {arquivados.length > 0 && (
@@ -69,7 +70,7 @@ export function CartoesView({ onNovo, onEditar, onAbrirFatura, mesInicial }: Pro
                   resumo={r}
                   mes={mes}
                   onAbrir={() => onAbrirFatura(r.cartao.id, mes)}
-                  onEditar={() => onEditar(r.cartao.id)}
+                  {...(onEditar ? { onEditar: () => onEditar(r.cartao.id) } : {})}
                 />
               ))}
             </>
@@ -91,7 +92,7 @@ function ItemCartao({
   resumo: ResumoCartao;
   mes: string;
   onAbrir: () => void;
-  onEditar: () => void;
+  onEditar?: () => void;
 }) {
   const { cartao } = r;
   const fatura = formatarCentavos(r.faturaCentavos);
@@ -140,27 +141,29 @@ function ItemCartao({
           Limite usado {usado} · disponível {disponivel}
         </Text>
       </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Editar ${cartao.apelido}`}
-        onPress={onEditar}
-        style={styles.editar}
-      >
-        <Icon name="edit" color="textMuted" />
-      </Pressable>
+      {onEditar && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Editar ${cartao.apelido}`}
+          onPress={onEditar}
+          style={styles.editar}
+        >
+          <Icon name="edit" color="textMuted" />
+        </Pressable>
+      )}
     </View>
   );
 }
 
 // Cenário "Usuário sem cartões": estado vazio com atalho para cadastrar.
-function Vazio({ onNovo }: { onNovo: () => void }) {
+function Vazio({ onNovo }: { onNovo?: () => void }) {
   return (
     <View style={styles.vazio}>
       <Icon name="credit-card" color="textSubtle" size={tokens.size.touch} />
       <Text color="textMuted" align="center">
         Cadastre seus cartões para ver a fatura e o limite de cada um.
       </Text>
-      <Button label="Cadastrar cartão" icon="plus" onPress={onNovo} />
+      {onNovo && <Button label="Cadastrar cartão" icon="plus" onPress={onNovo} />}
     </View>
   );
 }

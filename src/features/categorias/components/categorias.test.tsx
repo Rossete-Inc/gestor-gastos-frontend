@@ -272,3 +272,13 @@ describe('CategoriaForm', () => {
     expect(await screen.findByText('Sem conexão com o servidor. Tente de novo.')).toBeOnTheScreen();
   });
 });
+
+describe('CategoriasView do colaborador Leitor', () => {
+  it('vê as categorias, sem criar nem excluir', async () => {
+    server.use(...bffDeCategorias([alimentacao, pet, aluguel]).handlers);
+    await renderizar(<CategoriasView />);
+    expect(await screen.findByText('Pet')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Excluir Pet' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Nova categoria' })).toBeNull();
+  });
+});

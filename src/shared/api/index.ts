@@ -4,6 +4,6 @@
 export * as bff from './generated/bff';
 export type * from './generated/bff';
 export * as bffSchemas from './generated/bff.zod';
-export { ApiError, configurarAutenticacao } from './http';
-export type { Autenticacao, ErroDeCampo } from './http';
+export { ApiError, CABECALHO_CONTA, configurarAutenticacao, configurarConta } from './http';
+export type { Autenticacao, ContaHttp, ErroDeCampo } from './http';
 export { criarQueryClient, deveRepetir, queryClient } from './queryClient';
