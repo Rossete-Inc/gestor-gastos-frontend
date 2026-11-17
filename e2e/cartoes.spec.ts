@@ -7,7 +7,7 @@
 // gasto junto.
 import { expect, type Page, test } from '@playwright/test';
 
-import { abrir, diagnosticarNaFalha, entrar, preencher } from './app';
+import { abrir, abrirAba, diagnosticarNaFalha, entrar, preencher, tocarVisivel } from './app';
 import { type Conta, contaDeCliente, excluirUsuario, lerAmbiente } from './aws';
 
 const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -47,16 +47,9 @@ const somar = ([ano, mes]: [number, number], n: number): [number, number] => {
 
 const rotulo = ([ano, mes]: [number, number]) => `${MESES[mes - 1]} de ${ano}`;
 
-// As abas ficam montadas na web: há um "Próximo mês" em cada aba já visitada,
-// e o da aba anterior segue visível durante a troca. Espera o título da aba
-// de destino e usa só o botão à vista.
-async function avancarMeses(page: Page, aba: string, n: number) {
-  await expect(page.getByRole('heading', { name: aba, exact: true })).toBeVisible();
-  const proximo = page.locator('[aria-label="Próximo mês"]:visible');
-  for (let i = 0; i < n; i++) {
-    await expect(proximo).toHaveCount(1);
-    await proximo.click();
-  }
+// Cada aba visitada tem seu "Próximo mês" (ver abrirAba).
+async function avancarMeses(page: Page, n: number) {
+  for (let i = 0; i < n; i++) await tocarVisivel(page, 'Próximo mês');
 }
 
 let pessoa: Conta;
@@ -83,7 +76,7 @@ test('cartão, compra depois do fechamento e fatura dois meses depois', async ({
   await test.step('entra e cadastra o cartão', async () => {
     await abrir(page, '/login');
     await entrar(page, pessoa.email, pessoa.senha);
-    await page.getByRole('tab', { name: 'Cartões' }).click();
+    await abrirAba(page, 'Cartões');
     await page.getByRole('button', { name: 'Cadastrar cartão' }).click();
     await preencher(page, 'Apelido', apelido);
     await page.getByRole('button', { name: 'Dia de fechamento: Escolha o dia' }).click();
@@ -99,9 +92,8 @@ test('cartão, compra depois do fechamento e fatura dois meses depois', async ({
   });
 
   await test.step('lança a compra no cartão', async () => {
-    await page.getByRole('tab', { name: 'Gastos' }).click();
-    await expect(page.locator('[aria-label="Novo gasto"]:visible')).toHaveCount(1);
-    await page.getByRole('button', { name: 'Novo gasto' }).click();
+    await abrirAba(page, 'Gastos');
+    await tocarVisivel(page, 'Novo gasto');
     await page.getByLabel('Valor', { exact: true }).pressSequentially('10000');
     await page.getByRole('button', { name: /^Categoria:/ }).click();
     await page.getByRole('radio', { name: 'Alimentação' }).click();
@@ -115,8 +107,8 @@ test('cartão, compra depois do fechamento e fatura dois meses depois', async ({
   });
 
   await test.step('aparece na fatura e no limite, na aba Cartões', async () => {
-    await page.getByRole('tab', { name: 'Cartões' }).click();
-    await avancarMeses(page, 'Cartões', 2);
+    await abrirAba(page, 'Cartões');
+    await avancarMeses(page, 2);
     await expect(page.getByRole('heading', { name: rotulo(fatura) })).toBeVisible();
     const cartao = page.getByRole('button', { name: new RegExp(`^${apelido}: fatura de`) });
     await expect(cartao).toContainText('R$ 100,00');
@@ -130,15 +122,15 @@ test('cartão, compra depois do fechamento e fatura dois meses depois', async ({
   });
 
   await test.step('aparece no painel do mês da fatura, com o detalhe da fatia', async () => {
-    await page.getByRole('tab', { name: 'Painel' }).click();
-    await avancarMeses(page, 'Painel', 2);
+    await abrirAba(page, 'Painel');
+    await avancarMeses(page, 2);
     await expect(page.getByLabel(`${apelido}: 100%, R$ 100,00`)).toBeVisible();
     await page.getByRole('button', { name: /^Alimentação: 100%/ }).click();
     await expect(page.getByText('Alimentação · Cartão · R$ 100,00 · 100%')).toBeVisible();
   });
 
   await test.step('excluir com gastos é recusado; arquivar funciona', async () => {
-    await page.getByRole('tab', { name: 'Cartões' }).click();
+    await abrirAba(page, 'Cartões');
     await page.getByRole('button', { name: `Editar ${apelido}` }).click();
     await page.getByRole('button', { name: 'Excluir cartão' }).click();
     await page.getByRole('alert').getByRole('button', { name: 'Excluir', exact: true }).click();
