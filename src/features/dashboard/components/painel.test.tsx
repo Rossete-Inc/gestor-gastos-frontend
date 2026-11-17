@@ -442,6 +442,18 @@ describe('PainelView por cartão', () => {
     expect(screen.getByText('Aluguel · Fixo · R$ 1.500,00 · 60%')).toBeOnTheScreen();
   });
 
+  it('clicar logo depois do mouse passar não fecha o balão (web)', async () => {
+    server.use(bffDoPainel({ '2026-11': novembro }).handler);
+    await renderizar(<PainelView {...props()} mesInicial="2026-11" />);
+
+    const item = await screen.findByRole('button', { name: 'Aluguel: 60%, R$ 1.500,00' });
+    await fireEvent(item, 'hoverIn');
+    await fireEvent.press(item);
+    expect(screen.getByText('Aluguel · Fixo · R$ 1.500,00 · 60%')).toBeOnTheScreen(); // => segue aberto
+    await fireEvent.press(item);
+    expect(screen.queryByText('Aluguel · Fixo · R$ 1.500,00 · 60%')).toBeNull(); // => fechou
+  });
+
   it('visão por cartão: fatias dos cartões e detalhe por grupo (spec, "Visão por cartão")', async () => {
     server.use(bffDoPainel({ '2026-11': novembro }).handler);
     await renderizar(<PainelView {...props()} mesInicial="2026-11" />);

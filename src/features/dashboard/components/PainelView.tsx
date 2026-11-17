@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ApiError } from '@/shared/api';
@@ -165,11 +165,25 @@ function PorCategoria({ tela }: { tela: TelaDashboard }) {
   const nomeDaVisao = VISOES.find((v) => v.valor === visao)!.label;
   const fatiaSelecionada = selecionada === null ? undefined : fatias[selecionada];
 
+  // Na web o mouse passa pelo item da legenda antes do clique: o hover já
+  // abre o balão, e o clique logo depois não deve fechá-lo.
+  const abertaPeloHover = useRef<number | null>(null);
   const setVisao = (v: Visao) => {
     setVisaoAtual(v);
     setSelecionada(null);
+    abertaPeloHover.current = null;
   };
-  const alternar = (i: number) => setSelecionada((atual) => (atual === i ? null : i));
+  const alternar = (i: number) => {
+    if (abertaPeloHover.current === i && selecionada === i) {
+      abertaPeloHover.current = null;
+      return;
+    }
+    setSelecionada((atual) => (atual === i ? null : i));
+  };
+  const passarMouse = (i: number) => {
+    abertaPeloHover.current = i;
+    setSelecionada(i);
+  };
 
   return (
     <Pressable accessible={false} onPress={() => setSelecionada(null)} style={styles.cartao}>
@@ -213,7 +227,7 @@ function PorCategoria({ tela }: { tela: TelaDashboard }) {
                 valor={formatarCentavos(f.totalCentavos)}
                 selecionado={selecionada === i}
                 onPress={() => alternar(i)}
-                onHoverIn={() => setSelecionada(i)}
+                onHoverIn={() => passarMouse(i)}
               />
             ))}
           </View>
