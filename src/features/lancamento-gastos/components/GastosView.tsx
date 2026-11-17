@@ -29,6 +29,7 @@ import {
   type CategoriasPorGrupo,
   type FiltroGrupo,
   type Gasto,
+  seloDaSerie,
 } from '../model/gasto';
 
 type Props = {
@@ -189,7 +190,8 @@ function ItemGasto({ gasto, onPress }: { gasto: Gasto; onPress: () => void }) {
   const partes = [
     gasto.categoria.nome,
     ...(gasto.cartao ? [gasto.cartao.apelido] : []),
-    ...(gasto.recorrente ? ['recorrente'] : []),
+    // Na série, o selo ao lado do título já diz "Recorrente" ou "n/N".
+    ...(gasto.recorrente && !gasto.serie ? ['recorrente'] : []),
   ];
   return (
     <ExpenseItem
@@ -200,6 +202,7 @@ function ItemGasto({ gasto, onPress }: { gasto: Gasto; onPress: () => void }) {
       icone={gasto.grupo === 'FIXO' ? 'repeat' : 'credit-card'}
       accessibilityHint="Abre o gasto para editar ou excluir"
       onPress={onPress}
+      selo={seloDaSerie(gasto.serie)}
     />
   );
 }

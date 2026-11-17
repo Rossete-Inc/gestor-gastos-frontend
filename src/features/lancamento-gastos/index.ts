@@ -2,3 +2,4 @@
 export { GastoForm } from './components/GastoForm';
 export { GastosView } from './components/GastosView';
 export { gastosKeys } from './api/queries';
+export { seloDaSerie } from './model/gasto';

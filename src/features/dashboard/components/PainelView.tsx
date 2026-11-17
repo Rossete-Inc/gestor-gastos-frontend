@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { seloDaSerie } from '@/features/lancamento-gastos';
 import { ApiError } from '@/shared/api';
 import { formatarCentavos, mesAtual } from '@/shared/lib';
 import {
@@ -118,6 +119,7 @@ function Conteudo({
                 icone={g.grupo === 'FIXO' ? 'repeat' : 'credit-card'}
                 accessibilityHint="Abre o gasto para editar ou excluir"
                 onPress={() => onAbrir(g.id)}
+                selo={seloDaSerie(g.serie)}
               />
             ))}
           </ExpenseList>

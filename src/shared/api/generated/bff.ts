@@ -24,7 +24,7 @@
  * - **Isolamento:** o usuário é sempre o do token. Recurso de outro usuário
  *   responde 404, como se não existisse.
  *
- * OpenAPI spec version: 0.2.0
+ * OpenAPI spec version: 0.3.0
  */
 import { httpMutator } from '../http';
 export interface FieldError {
@@ -162,6 +162,42 @@ export interface CategoriaResumo {
   cor: Cor;
 }
 
+export type ParcelamentoInModo = typeof ParcelamentoInModo[keyof typeof ParcelamentoInModo];
+
+
+export const ParcelamentoInModo = {
+  TOTAL: 'TOTAL',
+  PARCELA: 'PARCELA',
+} as const;
+
+/**
+ * Só no POST, sem `recorrencia`. No modo `TOTAL`, `valorCentavos` é o
+ * total, dividido em `parcelas` com o resto na 1ª. No modo `PARCELA`,
+ * `valorCentavos` é o valor de cada parcela, da `parcelaAtual` até
+ * `parcelas` ou até o `mesFinal` (mês da fatura da última parcela).
+ */
+export interface ParcelamentoIn {
+  modo: ParcelamentoInModo;
+  /**
+     * @minimum 2
+     * @maximum 72
+     */
+  parcelas?: number;
+  /**
+     * @minimum 1
+     * @maximum 72
+     */
+  parcelaAtual?: number;
+  mesFinal?: Mes;
+}
+
+/**
+ * Só no POST, sem `parcelamento`. O gasto se repete todo mês, no mesmo dia, até o `mesFinal` (mês da data da última ocorrência) ou até ser encerrado.
+ */
+export interface RecorrenciaIn {
+  mesFinal?: Mes;
+}
+
 export interface GastoIn {
   /**
      * De R$ 0,01 a R$ 1.000.000,00.
@@ -177,7 +213,7 @@ export interface GastoIn {
   categoriaId: string;
   /** @maxLength 140 */
   descricao?: string;
-  /** Só informativo no MVP */
+  /** Informativo, dos gastos anteriores às séries. Para repetir o gasto, use `recorrencia`. */
   recorrente?: boolean;
   /**
      * Cartão ativo do usuário. Obrigatório para categoria do grupo `CARTAO`; opcional para `FIXO`.
@@ -185,6 +221,36 @@ export interface GastoIn {
      * @maxLength 64
      */
   cartaoId?: string;
+  parcelamento?: ParcelamentoIn;
+  recorrencia?: RecorrenciaIn;
+  /**
+     * Gerada pelo app a cada envio do formulário; repetir o envio não duplica o lançamento. Só no POST.
+     * @minLength 1
+     * @maxLength 128
+     */
+  chaveIdempotencia?: string;
+}
+
+export type SerieGastoTipo = typeof SerieGastoTipo[keyof typeof SerieGastoTipo];
+
+
+export const SerieGastoTipo = {
+  PARCELAMENTO: 'PARCELAMENTO',
+  RECORRENCIA: 'RECORRENCIA',
+} as const;
+
+/**
+ * Posição do gasto num parcelamento ("3/10") ou numa recorrência.
+ */
+export interface SerieGasto {
+  id: string;
+  tipo: SerieGastoTipo;
+  /** @minimum 1 */
+  numero: number;
+  /** Total de parcelas; ausente na recorrência. */
+  total?: number;
+  /** Editado com o alcance "só esta". */
+  ajustado?: boolean;
 }
 
 export interface CartaoResumo {
@@ -206,6 +272,7 @@ export interface Gasto {
   cartao?: CartaoResumo;
   descricao?: string;
   recorrente: boolean;
+  serie?: SerieGasto;
 }
 
 /**
@@ -399,6 +466,15 @@ export type CursorParameter = string;
  */
 export type LimitParameter = number;
 
+export type EscopoParameter = typeof EscopoParameter[keyof typeof EscopoParameter];
+
+
+export const EscopoParameter = {
+  ESTA: 'ESTA',
+  PROXIMAS: 'PROXIMAS',
+  TODAS: 'TODAS',
+} as const;
+
 export type ObterTelaDashboardParams = {
   /**
    * Mês no formato AAAA-MM. O app envia o mês corrente no fuso do dispositivo.
@@ -445,6 +521,24 @@ export type ObterTelaGastoFormParams = {
    * @maxLength 64
    */
   id?: string;
+};
+
+export type AtualizarGastoParams = {
+  /**
+   * Alcance num parcelamento ou recorrência: `ESTA` (só este gasto, que
+   * fica ajustado), `PROXIMAS` (este e os seguintes) ou `TODAS`.
+   * Obrigatório num gasto de série; ignorado no gasto avulso.
+   */
+  escopo?: EscopoParameter;
+};
+
+export type ExcluirGastoParams = {
+  /**
+   * Alcance num parcelamento ou recorrência: `ESTA` (só este gasto, que
+   * fica ajustado), `PROXIMAS` (este e os seguintes) ou `TODAS`.
+   * Obrigatório num gasto de série; ignorado no gasto avulso.
+   */
+  escopo?: EscopoParameter;
 };
 
 export type ObterTelaCartoesParams = {
@@ -615,6 +709,12 @@ export const getCriarGastoUrl = () => {
  * O grupo do gasto é o grupo da categoria escolhida. Categoria do grupo
  * `CARTAO` exige `cartaoId`; `FIXO` aceita cartão opcional. Com cartão,
  * o gasto entra no mês da fatura (`mesReferencia`).
+ *
+ * Com `parcelamento`, cria todas as parcelas e devolve a primeira; com
+ * `recorrencia`, cria a ocorrência do mês da data, e as dos meses
+ * seguintes aparecem ao abrir cada mês. Reenviar o mesmo lançamento com
+ * a mesma `chaveIdempotencia` devolve o gasto do primeiro envio sem
+ * criar nada.
  * @summary Lançar gasto
  */
 export const criarGasto = async (gastoIn: GastoIn, options?: Parameters<typeof httpMutator>[1]): Promise<Gasto> => {
@@ -644,22 +744,36 @@ return httpMutator<Gasto>(getCriarGastoUrl(),
 
 
 
-export const getAtualizarGastoUrl = (id: string,) => {
+export const getAtualizarGastoUrl = (id: string,
+    params?: AtualizarGastoParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/gastos/${id}`
+  return stringifiedParams.length > 0 ? `/gastos/${id}?${stringifiedParams}` : `/gastos/${id}`
 }
 
 /**
  * Mesmas validações do lançamento. Trocar a categoria pode trocar o
  * grupo; trocar a data ou o cartão recalcula o mês de referência e pode
  * mudar o `id` do gasto. Manter o cartão atual vale mesmo arquivado.
+ *
+ * Num gasto de série, `escopo` é obrigatório (422 no campo `escopo`).
+ * Com `PROXIMAS` ou `TODAS`, só o dia da data vale para a série; mudar
+ * o mês é 422 no campo `data`. `parcelamento`, `recorrencia` e
+ * `chaveIdempotencia` são ignorados na edição.
  * @summary Editar gasto
  */
 export const atualizarGasto = async (id: string,
-    gastoIn: GastoIn, options?: Parameters<typeof httpMutator>[1]): Promise<Gasto> => {
+    gastoIn: GastoIn,
+    params?: AtualizarGastoParams, options?: Parameters<typeof httpMutator>[1]): Promise<Gasto> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -675,7 +789,7 @@ export const atualizarGasto = async (id: string,
     }
     return headers;
   };
-return httpMutator<Gasto>(getAtualizarGastoUrl(id),
+return httpMutator<Gasto>(getAtualizarGastoUrl(id,params),
   {
     ...options,
     method: 'PUT',
@@ -686,20 +800,31 @@ return httpMutator<Gasto>(getAtualizarGastoUrl(id),
 
 
 
-export const getExcluirGastoUrl = (id: string,) => {
+export const getExcluirGastoUrl = (id: string,
+    params?: ExcluirGastoParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/gastos/${id}`
+  return stringifiedParams.length > 0 ? `/gastos/${id}?${stringifiedParams}` : `/gastos/${id}`
 }
 
 /**
+ * Num gasto de série, `escopo` é obrigatório: `PROXIMAS` apaga este e os
+ * seguintes (encerra a recorrência) e `TODAS` apaga a série inteira.
  * @summary Excluir gasto
  */
-export const excluirGasto = async (id: string, options?: Parameters<typeof httpMutator>[1]): Promise<void> => {
+export const excluirGasto = async (id: string,
+    params?: ExcluirGastoParams, options?: Parameters<typeof httpMutator>[1]): Promise<void> => {
 
-  return httpMutator<void>(getExcluirGastoUrl(id),
+  return httpMutator<void>(getExcluirGastoUrl(id,params),
   {
     ...options,
     method: 'DELETE'
